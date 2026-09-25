@@ -1,7 +1,8 @@
 rules_version = '2';
 
 // Security rules for Roll Call. Paste into Firebase console → Firestore Database → Rules, then Publish.
-// Replace organizer@example.com with the organizer's Google email (same as docs/config.js).
+// Replace organizer@example.com with the organizer's Google email. Don't commit your real email:
+// edit it only in the Firebase console, since this repository is public.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -40,6 +41,11 @@ service cloud.firestore {
         && d.photo is string && d.photo.size() <= 1000
         && request.time.toMillis() >= c.startsAt
         && request.time.toMillis() <= c.endsAt + 60000;
+    }
+
+    // Readable only by organizers: the site reads admin/probe to decide whether to show organizer tools
+    match /admin/{docId} {
+      allow read: if isOrganizer();
     }
 
     // Passcode check value and challenge settings

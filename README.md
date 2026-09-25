@@ -15,7 +15,7 @@ The week-long challenge as a public website: <https://gs82.github.io/name_game/>
 | --- | --- |
 | `docs/index.html` | Page layout and styles |
 | `docs/app.js` | Game, encryption, and Firebase code |
-| `docs/config.js` | Your Firebase settings and organizer email |
+| `docs/config.js` | Your Firebase settings |
 | `firestore.rules` | Database security rules (paste into Firebase) |
 
 ## Other versions

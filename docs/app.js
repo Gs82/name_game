@@ -4,7 +4,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { FIREBASE_CONFIG, ORGANIZER_EMAILS } from './config.js';
+import { FIREBASE_CONFIG } from './config.js';
 
 // ================= Encryption =================
 const enc = new TextEncoder(), dec = new TextDecoder();
@@ -837,8 +837,9 @@ function forgetPass() { try { localStorage.removeItem(passKey()); } catch {} }
 
   async function startSession() {
     myId = me.uid;
-    const email = (me.email || '').toLowerCase();
-    isAdmin = ORGANIZER_EMAILS.map(e => String(e).toLowerCase()).includes(email);
+    // Only organizers may read admin/*, so a successful read means this is the organizer.
+    // Keeps organizer emails out of the public site code.
+    try { await getDoc(doc(db, 'admin', 'probe')); isAdmin = true; } catch { isAdmin = false; }
     $('account').hidden = false;
     $('accountName').textContent = me.displayName || me.email || 'Signed in';
     if (me.photoURL) { $('accountImg').referrerPolicy = 'no-referrer'; $('accountImg').src = me.photoURL; }

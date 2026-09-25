@@ -8,6 +8,5 @@ export const FIREBASE_CONFIG = {
   appId: 'PASTE_APP_ID',
 };
 
-// Google accounts that can upload photos and change settings.
-// Must match the list in firestore.rules.
-export const ORGANIZER_EMAILS = ['organizer@example.com'];
+// Organizer emails are NOT listed here (this file is public). They live only in
+// the Firestore security rules, which you paste into the Firebase console.

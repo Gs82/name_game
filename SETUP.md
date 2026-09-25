@@ -10,7 +10,7 @@ The website lives in `docs/` and runs on GitHub Pages. Scores, settings and the 
 ## 2. Turn on Google sign-in
 
 1. In the left menu open **Build → Authentication** and click **Get started**.
-2. Under **Sign-in method**, choose **Google**, switch it on, pick your support email, and **Save**.
+2. Under **Sign-in method**, choose **Google**, switch it on, pick a **support email**, and **Save**. Players can see this address on the Google sign-in window. To keep your personal email private, create a separate Gmail for the class (for example `rollcall.yourclass@gmail.com`). Add it under gear icon → **Project settings** → **Users and permissions** → **Add member** as an **Owner**, accept the invite from that inbox, and it will appear in the dropdown.
 3. Open the **Settings** tab → **Authorized domains** → **Add domain** and enter `gs82.github.io`.
 
 ## 3. Create the database
@@ -18,13 +18,13 @@ The website lives in `docs/` and runs on GitHub Pages. Scores, settings and the 
 1. Open **Build → Firestore Database** → **Create database**.
 2. Pick a location near you and start in **production mode**.
 3. Open the **Rules** tab, delete what's there, and paste the contents of [`firestore.rules`](firestore.rules).
-4. Replace `organizer@example.com` with your Google email, then click **Publish**.
+4. Replace `organizer@example.com` with the Google account you'll sign in with as the organizer, then click **Publish**. Only edit it here in the console. The repository is public, so don't commit your real email to it.
 
 ## 4. Connect the website
 
 1. Click the gear icon → **Project settings** → **Your apps** → the web icon `</>`.
 2. Register an app (any nickname, leave Firebase Hosting unticked).
-3. Copy the values from the `firebaseConfig` it shows into [`docs/config.js`](docs/config.js), and put your Google email in `ORGANIZER_EMAILS`.
+3. Copy the values from the `firebaseConfig` it shows into [`docs/config.js`](docs/config.js).
 
 These values aren't secret. The rules from step 3 decide who can do what.
 
@@ -45,7 +45,7 @@ These values aren't secret. The rules from step 3 decide who can do what.
 ## How the pieces protect the class
 
 - **Photos and names** are encrypted in your browser with a key made from the passcode (AES-256 with a PBKDF2-derived key). The database only stores scrambled data, so without the passcode it's useless.
-- **Only organizer emails** can upload photos, change settings or clear the leaderboard. The Firestore rules enforce this, not just the page.
+- **Only organizer emails** can upload photos, change settings or clear the leaderboard. The Firestore rules enforce this, not just the page, and the emails appear only in those rules, never in the public site code.
 - **Scores:** each player can only write their own score, under their own Google name. The rules reject scores outside the challenge window, totals that don't match the class size, and times faster than 0.25 seconds per photo.
 - **Search engines** are asked not to index the site.
 
