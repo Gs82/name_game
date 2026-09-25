@@ -1,16 +1,15 @@
 // Roll Call: website version (GitHub Pages + Firebase).
-// Photos and names are encrypted in the organizer's browser with a key derived
-// from the class passcode, so the database only ever holds ciphertext.
+// Players sign in with their school email and a password. Only emails on the
+// organizer's class list can read the photos or post scores; firestore.rules enforces it.
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import {
+  getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  sendEmailVerification, sendPasswordResetEmail, updateProfile,
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import {
+  getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, writeBatch,
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { FIREBASE_CONFIG } from './config.js';
-
-// ================= Encryption =================
-const enc = new TextEncoder(), dec = new TextDecoder();
-const CHECK = 'roll-call-ok';
-const PBKDF2_ITERATIONS = 250000;
-let classKey = null, cryptoMeta = null;
 
 function b64(buf) {
   const u = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
@@ -18,33 +17,6 @@ function b64(buf) {
   for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
   return btoa(s);
 }
-const unb64 = str => Uint8Array.from(atob(str), c => c.charCodeAt(0));
-const normPass = pass => pass.normalize('NFKC').trim().toLowerCase();
-
-async function deriveKey(pass, saltB64, iterations) {
-  const base = await crypto.subtle.importKey('raw', enc.encode(normPass(pass)), 'PBKDF2', false, ['deriveKey']);
-  return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: unb64(saltB64), iterations, hash: 'SHA-256' },
-    base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
-}
-// AES-GCM; stored as base64(iv || ciphertext)
-async function seal(key, bytes) {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, bytes));
-  const out = new Uint8Array(12 + ct.length);
-  out.set(iv); out.set(ct, 12);
-  return b64(out);
-}
-async function openSealed(key, str) {
-  const u = unb64(str);
-  return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: u.subarray(0, 12) }, key, u.subarray(12)));
-}
-
-// The passcode is remembered in this browser only, so players don't retype it
-const passKey = () => 'rollcall-pass-' + (FIREBASE_CONFIG.projectId || '');
-function rememberPass(v) { try { localStorage.setItem(passKey(), v); } catch {} }
-function recallPass() { try { return localStorage.getItem(passKey()); } catch { return null; } }
-function forgetPass() { try { localStorage.removeItem(passKey()); } catch {} }
 
   const $ = id => document.getElementById(id);
   const photoUrl = p => p.url;
@@ -170,6 +142,14 @@ function forgetPass() { try { localStorage.removeItem(passKey()); } catch {} }
     $('practiceBtn').disabled = n < 2;
   }
 
+  function initialsAvatar(name) {
+    const letters = name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
+    let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72"><rect width="72" height="72" fill="hsl(${h % 360} 45% 52%)"/>` +
+      `<text x="36" y="45" font-family="system-ui,sans-serif" font-size="28" font-weight="700" fill="#fff" text-anchor="middle">${letters.replace(/[<&>]/g, '')}</text></svg>`;
+    return 'data:image/svg+xml,' + encodeURIComponent(svg);
+  }
+
   let boardToken = 0;
   async function renderBoard() {
     const token = ++boardToken;
@@ -187,7 +167,8 @@ function forgetPass() { try { localStorage.removeItem(passKey()); } catch {} }
       const rank = document.createElement('span');
       rank.className = 'rank'; rank.textContent = i + 1;
       const img = document.createElement('img');
-      img.alt = ''; img.referrerPolicy = 'no-referrer'; if (p.avatarUrl) img.src = p.avatarUrl; else img.style.visibility = 'hidden';
+      img.alt = ''; img.referrerPolicy = 'no-referrer';
+      img.src = p.avatarUrl || initialsAvatar(p.name || '?');
       const who = document.createElement('div');
       who.className = 'who';
       const n = document.createElement('div');
@@ -233,7 +214,7 @@ function forgetPass() { try { localStorage.removeItem(passKey()); } catch {} }
       input.onchange = async () => {
         const v = input.value.trim();
         if (!v || v === p.name) { input.value = p.name; return; }
-        try { await updateDoc(doc(db, 'roster', p.id), { name: await seal(classKey, enc.encode(v)) }); }
+        try { await updateDoc(doc(db, 'roster', p.id), { name: v }); }
         catch (e) { input.value = p.name; $('uploadStatus').textContent = "Couldn't rename: " + e.message; }
       };
       const del = document.createElement('button');
@@ -267,7 +248,7 @@ function forgetPass() { try { localStorage.removeItem(passKey()); } catch {} }
 
   let uploading = false;
   async function uploadFiles(fileList) {
-    if (!isAdmin || !db || !classKey) { $('uploadStatus').textContent = 'Only the organizer can add photos.'; return; }
+    if (!isAdmin || !db) { $('uploadStatus').textContent = 'Only the organizer can add photos.'; return; }
     if (uploading) return;
     const files = [...fileList].filter(f => /\.(jpe?g|png|gif|webp|bmp|heic|heif|avif)$/i.test(f.name) || (f.type || '').startsWith('image/'));
     if (!files.length) { $('uploadStatus').textContent = 'No photos found. Use JPG, PNG, WebP or HEIC files.'; return; }
@@ -285,8 +266,8 @@ function forgetPass() { try { localStorage.removeItem(passKey()); } catch {} }
         catch { throw new Error("this browser can't read this format. Save it as JPG and try again."); }
         const bytes = new Uint8Array(await blob.arrayBuffer());
         await addDoc(collection(db, 'roster'), {
-          name: await seal(classKey, enc.encode(name)),
-          img: await seal(classKey, bytes),
+          name,
+          img: b64(bytes),
           addedAt: Date.now(),
         });
         existing.add(normalize(name));
@@ -763,7 +744,7 @@ function forgetPass() { try { localStorage.removeItem(passKey()); } catch {} }
     const prev = scores.find(s => s.id === myId);
     const attempts = (prev && prev.attempts || 0) + 1;
     const improved = better(run, prev);
-    const who = { name: me.displayName || '', photo: (me.photoURL || '').slice(0, 900) };
+    const who = { name: (me.displayName || me.email.split('@')[0]).slice(0, 60), photo: '' };
     const body = improved ? { ...run, attempts, lastPlayedAt: run.achievedAt, ...who }
       : { correct: prev.correct, total: prev.total, ms: prev.ms, achievedAt: prev.achievedAt, attempts, lastPlayedAt: run.achievedAt, ...who };
     $('resVerdict').textContent = 'Saving…';
@@ -799,11 +780,42 @@ function forgetPass() { try { localStorage.removeItem(passKey()); } catch {} }
   renderPlayCard();
   setInterval(renderWindow, 30000);
 
-  // ================= Boot =================
+  // ================= Sign-in =================
+  const GATES = ['gateLoading', 'gateSetup', 'gateSignIn', 'gateVerify', 'gateNotListed'];
   function gate(which) {
     show('gate');
-    for (const id of ['gateLoading', 'gateSetup', 'gateSignIn', 'gatePass', 'gateCreate', 'gateWait']) $(id).hidden = id !== which;
+    for (const id of GATES) $(id).hidden = id !== which;
   }
+  const lowerEmail = e => String(e || '').trim().toLowerCase();
+
+  let authMode = 'signin';
+  function setAuthMode(m) {
+    authMode = m;
+    const up = m === 'signup';
+    $('nameField').hidden = !up;
+    $('authTitle').textContent = up ? 'Create your account' : 'Sign in with your school email';
+    $('authSubmit').textContent = up ? 'Create account' : 'Sign in';
+    $('authToggle').textContent = up ? 'I already have an account' : 'First time here? Create an account';
+    $('pwInput').autocomplete = up ? 'new-password' : 'current-password';
+    $('forgotBtn').hidden = up;
+    $('authErr').textContent = '';
+  }
+
+  function authMessage(e) {
+    switch (e.code) {
+      case 'auth/invalid-credential': case 'auth/wrong-password': case 'auth/user-not-found':
+        return 'That email and password don\'t match. First time here? Create an account.';
+      case 'auth/email-already-in-use': return 'There\'s already an account for this email. Sign in, or reset your password.';
+      case 'auth/weak-password': return 'Use a password with at least 6 characters.';
+      case 'auth/invalid-email': return 'That doesn\'t look like an email address.';
+      case 'auth/too-many-requests': return 'Too many tries. Wait a few minutes and try again.';
+      case 'auth/network-request-failed': return 'Couldn\'t connect. Check your internet and try again.';
+      case 'auth/operation-not-allowed': return 'Email sign-in isn\'t switched on yet. The organizer needs to enable Email/Password in Firebase.';
+      default: return 'Something went wrong: ' + (e.message || e.code);
+    }
+  }
+  // After clicking the email link, Firebase shows a Continue button that returns here
+  const linkSettings = () => ({ url: location.origin + location.pathname });
 
   const configured = FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey && !/PASTE/.test(FIREBASE_CONFIG.apiKey);
   if (!configured) {
@@ -813,19 +825,54 @@ function forgetPass() { try { localStorage.removeItem(passKey()); } catch {} }
     auth = getAuth(app);
     db = getFirestore(app);
     gate('gateLoading');
+    setAuthMode('signin');
 
-    $('signInBtn').onclick = async () => {
-      $('signInErr').textContent = '';
-      try { await signInWithPopup(auth, new GoogleAuthProvider()); }
-      catch (e) {
-        if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
-        $('signInErr').textContent = e.code === 'auth/unauthorized-domain'
-          ? 'This website address isn\'t allowed to sign in yet. The organizer needs to add it in Firebase under Authentication, Settings, Authorized domains.'
-          : e.code === 'auth/popup-blocked' ? 'Your browser blocked the sign-in window. Allow pop-ups for this site and try again.'
-          : 'Couldn\'t sign in: ' + (e.message || e.code);
-      }
+    $('authToggle').onclick = () => setAuthMode(authMode === 'signin' ? 'signup' : 'signin');
+    $('authForm').onsubmit = async e => {
+      e.preventDefault();
+      const email = lowerEmail($('emailInput').value), pw = $('pwInput').value, name = $('nameInput').value.trim();
+      if (!email || !pw) { $('authErr').textContent = 'Enter your school email and a password.'; return; }
+      if (authMode === 'signup' && !name) { $('authErr').textContent = 'Add your name. It\'s what the leaderboard shows.'; return; }
+      $('authErr').textContent = authMode === 'signup' ? 'Creating your account…' : 'Signing in…';
+      try {
+        if (authMode === 'signup') {
+          const cred = await createUserWithEmailAndPassword(auth, email, pw);
+          await updateProfile(cred.user, { displayName: name.slice(0, 60) });
+          await sendEmailVerification(cred.user, linkSettings()).catch(() => sendEmailVerification(cred.user));
+          startSession(true);
+        } else {
+          await signInWithEmailAndPassword(auth, email, pw);
+        }
+        $('authErr').textContent = '';
+      } catch (err) { $('authErr').textContent = authMessage(err); }
     };
-    $('signOutBtn').onclick = async () => { forgetPass(); await signOut(auth); location.reload(); };
+    $('forgotBtn').onclick = async () => {
+      const email = lowerEmail($('emailInput').value);
+      if (!email) { $('authErr').textContent = 'Type your school email above first.'; return; }
+      try {
+        await sendPasswordResetEmail(auth, email);
+        $('authErr').textContent = `If there's an account for ${email}, a reset link is on its way. Check Junk too.`;
+      } catch (err) { $('authErr').textContent = authMessage(err); }
+    };
+
+    $('verifyContinue').onclick = async () => {
+      const u = auth.currentUser;
+      if (!u) return gate('gateSignIn');
+      $('verifyMsg').textContent = 'Checking…';
+      await u.reload();
+      if (!auth.currentUser.emailVerified) { $('verifyMsg').textContent = 'Not confirmed yet. Open the link in the email first, then come back.'; return; }
+      await auth.currentUser.getIdToken(true);   // the new token carries email_verified for the security rules
+      $('verifyMsg').textContent = '';
+      me = auth.currentUser;
+      startSession(true);
+    };
+    $('verifyResend').onclick = async () => {
+      try {
+        await sendEmailVerification(auth.currentUser, linkSettings()).catch(() => sendEmailVerification(auth.currentUser));
+        $('verifyMsg').textContent = 'Sent again. It can take a minute, and it may land in Junk.';
+      } catch (err) { $('verifyMsg').textContent = authMessage(err); }
+    };
+    for (const id of ['signOutBtn', 'verifyOut', 'notListedOut']) $(id).onclick = async () => { await signOut(auth); location.reload(); };
 
     onAuthStateChanged(auth, u => {
       if (!u) { $('account').hidden = true; gate('gateSignIn'); return; }
@@ -835,85 +882,38 @@ function forgetPass() { try { localStorage.removeItem(passKey()); } catch {} }
     });
   }
 
-  async function startSession() {
+  async function startSession(force) {
+    if (!force && entered) return;
     myId = me.uid;
-    // Only organizers may read admin/*, so a successful read means this is the organizer.
-    // Keeps organizer emails out of the public site code.
-    try { await getDoc(doc(db, 'admin', 'probe')); isAdmin = true; } catch { isAdmin = false; }
     $('account').hidden = false;
-    $('accountName').textContent = me.displayName || me.email || 'Signed in';
-    if (me.photoURL) { $('accountImg').referrerPolicy = 'no-referrer'; $('accountImg').src = me.photoURL; }
-    else $('accountImg').hidden = true;
+    $('accountName').textContent = me.displayName || me.email;
+    $('accountImg').src = initialsAvatar(me.displayName || me.email || '?');
 
+    if (!me.emailVerified) {
+      $('verifyEmail').textContent = me.email;
+      gate('gateVerify');
+      return;
+    }
     gate('gateLoading');
-    let snap;
-    try { snap = await getDoc(doc(db, 'meta', 'crypto')); }
-    catch (e) {
-      $('gateLoading').querySelector('p').textContent = e.code === 'permission-denied'
-        ? 'The class database refused access. The organizer needs to publish the security rules from firestore.rules.'
-        : 'Couldn\'t reach the class database. Check your connection and reload.';
-      return;
+    // Only organizers may read admin/*, so a successful read means this is the organizer.
+    // This keeps organizer emails out of the public site code.
+    try { await getDoc(doc(db, 'admin', 'probe')); isAdmin = true; } catch { isAdmin = false; }
+    if (!isAdmin) {
+      let listed = false;
+      try { listed = (await getDoc(doc(db, 'allowed', lowerEmail(me.email)))).exists(); } catch {}
+      if (!listed) {
+        $('notListedEmail').textContent = me.email;
+        gate('gateNotListed');
+        return;
+      }
     }
-    if (!snap.exists()) { gate(isAdmin ? 'gateCreate' : 'gateWait'); return; }
-    cryptoMeta = snap.data();
-    const saved = recallPass();
-    if (saved && await tryUnlock(saved)) return;
-    if (saved) forgetPass();
-    gate('gatePass');
-    setTimeout(() => $('passInput').focus(), 0);
-  }
-
-  async function tryUnlock(pass) {
-    try {
-      const key = await deriveKey(pass, cryptoMeta.salt, cryptoMeta.iter);
-      if (dec.decode(await openSealed(key, cryptoMeta.check)) !== CHECK) return false;
-      classKey = key;
-    } catch { return false; }
-    rememberPass(pass);
     enterGame();
-    return true;
   }
 
-  $('passForm').onsubmit = async e => {
-    e.preventDefault();
-    const v = $('passInput').value;
-    if (!v.trim()) return;
-    $('passErr').textContent = 'Checking…';
-    if (!(await tryUnlock(v))) $('passErr').textContent = 'That passcode didn\'t work. Check it with your organizer.';
-  };
+  // ---------- After signing in ----------
+  let entered = false, rosterComplete = false, allowed = [];
 
-  async function newCrypto(pass) {
-    const salt = b64(crypto.getRandomValues(new Uint8Array(16)));
-    const key = await deriveKey(pass, salt, PBKDF2_ITERATIONS);
-    return { key, meta: { salt, iter: PBKDF2_ITERATIONS, check: await seal(key, enc.encode(CHECK)) } };
-  }
-
-  $('createForm').onsubmit = async e => {
-    e.preventDefault();
-    const v = $('createInput').value.trim();
-    if (normPass(v).length < 6) { $('createErr').textContent = 'Use at least 6 characters.'; return; }
-    $('createErr').textContent = 'Setting up…';
-    const { key, meta } = await newCrypto(v);
-    try {
-      await setDoc(doc(db, 'meta', 'crypto'), meta);
-      const now = Date.now();
-      await setDoc(doc(db, 'meta', 'challenge'), { startsAt: now, endsAt: now + 7 * 864e5, prize: '', size: 0 });
-    } catch (err) {
-      $('createErr').textContent = err.code === 'permission-denied'
-        ? 'Firebase refused the change. Check that your Google email is in firestore.rules and that the rules are published.'
-        : 'Couldn\'t save: ' + (err.message || err.code);
-      return;
-    }
-    cryptoMeta = meta; classKey = key;
-    rememberPass(v);
-    enterGame();
-  };
-
-  // ---------- After unlocking ----------
-  const plain = new Map();     // roster id -> decrypted entry, reused while its ciphertext is unchanged
-  let rosterToken = 0, rosterComplete = false, changingPass = false, entered = false;
-
-  function enterGame() {
+  async function enterGame() {
     if (entered) return;
     entered = true;
     show('home');
@@ -923,49 +923,30 @@ function forgetPass() { try { localStorage.removeItem(passKey()); } catch {} }
       $('orgBar').hidden = false;
       wireAdmin();
       renderOrgBar();
+      const ch = await getDoc(doc(db, 'meta', 'challenge')).catch(() => null);
+      if (ch && !ch.exists()) {
+        const now = Date.now();
+        await setDoc(doc(db, 'meta', 'challenge'), { startsAt: now, endsAt: now + 7 * 864e5, prize: '', size: 0 }).catch(e => console.warn(e));
+      }
+      onSnapshot(collection(db, 'allowed'), snap => { allowed = snap.docs.map(d => d.id).sort(); renderAllowed(); }, err => console.warn('allowed', err));
     }
-    onSnapshot(collection(db, 'roster'), handleRoster, err => console.warn('roster', err));
+    onSnapshot(collection(db, 'roster'), snap => {
+      roster = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .filter(p => typeof p.name === 'string' && typeof p.img === 'string')
+        .map(p => ({ id: p.id, name: p.name, url: 'data:image/jpeg;base64,' + p.img }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      rosterComplete = !snap.metadata || !snap.metadata.fromCache;
+      renderPlayCard(); renderRoster(); renderOrgBar(); syncSize();
+    }, err => console.warn('roster', err));
     onSnapshot(doc(db, 'meta', 'challenge'), snap => {
       config = snap.exists() ? snap.data() : null;
       renderWindow(); fillConfigForm(); renderBoard(); syncSize();
     }, err => console.warn('challenge', err));
-    onSnapshot(doc(db, 'meta', 'crypto'), snap => {
-      // The organizer changed the passcode: ask for the new one
-      if (!changingPass && snap.exists() && snap.data().check !== cryptoMeta.check) { forgetPass(); location.reload(); }
-    }, () => {});
     onSnapshot(collection(db, 'scores'), snap => {
       scores = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         .filter(s => typeof s.correct === 'number' && typeof s.total === 'number' && typeof s.ms === 'number');
       renderBoard();
     }, err => console.warn('scores', err));
-  }
-
-  async function handleRoster(snap) {
-    if (changingPass) return;
-    const token = ++rosterToken;
-    const next = [];
-    let failed = 0;
-    for (const d of snap.docs) {
-      const data = d.data();
-      let p = plain.get(d.id);
-      try {
-        if (!p || p.imgCt !== data.img) {
-          const bytes = await openSealed(classKey, data.img);
-          if (p) URL.revokeObjectURL(p.url);
-          p = { id: d.id, imgCt: data.img, nameCt: null, name: '', bytes: isAdmin ? bytes : null,
-                url: URL.createObjectURL(new Blob([bytes], { type: 'image/jpeg' })) };
-          plain.set(d.id, p);
-        }
-        if (p.nameCt !== data.name) { p.name = dec.decode(await openSealed(classKey, data.name)); p.nameCt = data.name; }
-        next.push(p);
-      } catch { failed++; }
-      if (token !== rosterToken) return;
-    }
-    const live = new Set(snap.docs.map(d => d.id));
-    for (const [id, p] of plain) if (!live.has(id)) { URL.revokeObjectURL(p.url); plain.delete(id); }
-    roster = next.sort((a, b) => a.name.localeCompare(b.name));
-    rosterComplete = failed === 0;
-    renderPlayCard(); renderRoster(); renderOrgBar(); syncSize();
   }
 
   // Keep the class size in the challenge settings so the security rules can check each score's total
@@ -977,29 +958,41 @@ function forgetPass() { try { localStorage.removeItem(passKey()); } catch {} }
     sizeWriting = false;
   }
 
-  $('changePassForm').onsubmit = async e => {
+  // ---------- Organizer: class list ----------
+  function renderAllowed() {
+    const ul = $('allowList');
+    ul.innerHTML = '';
+    for (const email of allowed) {
+      const li = document.createElement('li');
+      const span = document.createElement('span'); span.textContent = email;
+      const del = document.createElement('button');
+      del.type = 'button'; del.className = 'danger'; del.textContent = 'Remove';
+      del.setAttribute('aria-label', 'Remove ' + email);
+      del.onclick = async () => {
+        del.disabled = true;
+        try { await deleteDoc(doc(db, 'allowed', email)); }
+        catch (e) { del.disabled = false; $('allowStatus').textContent = 'Couldn\'t remove: ' + (e.message || e.code); }
+      };
+      li.append(span, del);
+      ul.append(li);
+    }
+    $('allowCount').textContent = allowed.length ? `${allowed.length} email${allowed.length === 1 ? '' : 's'} on the list` : 'Nobody on the list yet';
+  }
+  $('allowForm').onsubmit = async e => {
     e.preventDefault();
     if (!isAdmin) return;
-    const v = $('newPass').value.trim(), st = $('changePassStatus');
-    if (normPass(v).length < 6) { st.textContent = 'Use at least 6 characters.'; return; }
-    if (!rosterComplete || roster.some(p => !p.bytes)) { st.textContent = 'Wait for every photo to finish loading, then try again.'; return; }
-    changingPass = true;
-    const { key, meta } = await newCrypto(v);
+    const found = ($('allowInput').value.match(/[^\s,;<>"'()]+@[^\s,;<>"'()]+\.[^\s,;<>"'()]+/g) || []).map(lowerEmail);
+    const fresh = [...new Set(found)].filter(x => !allowed.includes(x));
+    if (!found.length) { $('allowStatus').textContent = 'No email addresses found. Paste one per line.'; return; }
+    if (!fresh.length) { $('allowStatus').textContent = 'Those are already on the list.'; return; }
+    $('allowStatus').textContent = 'Adding…';
     try {
-      let i = 0;
-      for (const p of roster) {
-        st.textContent = `Re-encrypting ${++i} of ${roster.length}…`;
-        const upd = { name: await seal(key, enc.encode(p.name)), img: await seal(key, p.bytes) };
-        await updateDoc(doc(db, 'roster', p.id), upd);
-        p.nameCt = upd.name; p.imgCt = upd.img;
+      for (let i = 0; i < fresh.length; i += 400) {
+        const batch = writeBatch(db);
+        for (const addr of fresh.slice(i, i + 400)) batch.set(doc(db, 'allowed', addr), { addedAt: Date.now() });
+        await batch.commit();
       }
-      await setDoc(doc(db, 'meta', 'crypto'), meta);
-      cryptoMeta = meta; classKey = key;
-      rememberPass(v);
-      $('newPass').value = '';
-      st.textContent = 'Passcode changed. Send the new one to your classmates.';
-    } catch (err) {
-      st.textContent = 'Couldn\'t finish: ' + (err.message || err.code) + '. Try again; photos already done keep working with the new passcode once it saves.';
-    }
-    changingPass = false;
+      $('allowInput').value = '';
+      $('allowStatus').textContent = `Added ${fresh.length}. They can now create an account with that email.`;
+    } catch (err) { $('allowStatus').textContent = 'Couldn\'t add: ' + (err.message || err.code); }
   };

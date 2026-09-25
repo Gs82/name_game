@@ -1,19 +1,32 @@
 rules_version = '2';
 
 // Security rules for Roll Call. Paste into Firebase console → Firestore Database → Rules, then Publish.
-// Replace organizer@example.com with the organizer's Google email. Don't commit your real email:
-// edit it only in the Firebase console, since this repository is public.
+// Replace organizer@school.edu with the organizer's school email. Edit it only in the
+// Firebase console: this repository is public, so don't commit your real email.
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function signedIn() {
-      return request.auth != null;
+      return request.auth != null && request.auth.token.email != null;
+    }
+
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    // The player clicked the confirmation link, so they really own the address
+    function verified() {
+      return signedIn() && request.auth.token.email_verified == true;
     }
 
     function isOrganizer() {
-      return signedIn()
-        && request.auth.token.email_verified == true
-        && request.auth.token.email.lower() in ['organizer@example.com'];
+      return verified() && myEmail() in ['organizer@school.edu'];
+    }
+
+    // On the organizer's class list (the organizer always counts)
+    function onList() {
+      return verified()
+        && (isOrganizer() || exists(/databases/$(database)/documents/allowed/$(myEmail())));
     }
 
     function challenge() {
@@ -21,8 +34,7 @@ service cloud.firestore {
     }
 
     // A player's best run. Totals must match the class size, times can't be
-    // impossibly fast, the name must be their Google name, and runs only count
-    // during the challenge window.
+    // impossibly fast, and runs only count during the challenge window.
     function validScore() {
       let d = request.resource.data;
       let c = challenge();
@@ -37,8 +49,8 @@ service cloud.firestore {
         && d.correct >= 0 && d.correct <= d.total && d.total > 0
         && (keptBest || (d.total == c.size && d.ms >= d.total * 250))
         && d.attempts >= 1 && d.attempts <= 100000
-        && d.name == request.auth.token.get('name', '')
-        && d.photo is string && d.photo.size() <= 1000
+        && d.name is string && d.name.size() >= 1 && d.name.size() <= 60
+        && d.photo == ''
         && request.time.toMillis() >= c.startsAt
         && request.time.toMillis() <= c.endsAt + 60000;
     }
@@ -48,21 +60,27 @@ service cloud.firestore {
       allow read: if isOrganizer();
     }
 
-    // Passcode check value and challenge settings
-    match /meta/{docId} {
-      allow read: if signedIn();
+    // The class list: one document per allowed email (lowercase), e.g. allowed/jane.doe@school.edu
+    match /allowed/{email} {
+      allow read: if isOrganizer() || (verified() && myEmail() == email);
       allow write: if isOrganizer();
     }
 
-    // Encrypted photos and names
+    // Challenge settings
+    match /meta/{docId} {
+      allow read: if onList();
+      allow write: if isOrganizer();
+    }
+
+    // Class photos and names
     match /roster/{personId} {
-      allow read: if signedIn();
+      allow read: if onList();
       allow write: if isOrganizer();
     }
 
     match /scores/{uid} {
-      allow read: if signedIn();
-      allow create, update: if signedIn() && request.auth.uid == uid && validScore();
+      allow read: if onList();
+      allow create, update: if onList() && request.auth.uid == uid && validScore();
       allow delete: if isOrganizer();
     }
   }
