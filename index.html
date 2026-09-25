@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Name Game</title>
+<style>
+  :root {
+    --bg: #f6f5f2;
+    --card: #ffffff;
+    --text: #1d1d1f;
+    --muted: #6b6b70;
+    --border: #e2e0db;
+    --accent: #3b5bdb;
+    --accent-text: #ffffff;
+    --good: #2b8a3e;
+    --good-bg: #e6f4ea;
+    --bad: #c92a2a;
+    --bad-bg: #fdecec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151517;
+      --card: #1f1f23;
+      --text: #ececf0;
+      --muted: #9a9aa3;
+      --border: #33333a;
+      --accent: #748ffc;
+      --accent-text: #0b0b0d;
+      --good: #69db7c;
+      --good-bg: #1d3324;
+      --bad: #ff8787;
+      --bad-bg: #3a1f1f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  p.sub { color: var(--muted); margin: 0 0 24px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+  }
+  .hidden { display: none !important; }
+  button {
+    font: inherit;
+    cursor: pointer;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    padding: 10px 16px;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+  button:disabled { cursor: default; opacity: .85; }
+  .drop {
+    border: 2px dashed var(--border);
+    border-radius: 14px;
+    padding: 32px 16px;
+    text-align: center;
+    color: var(--muted);
+    transition: border-color .15s, background .15s;
+  }
+  .drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .drop .buttons { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .setting { margin-top: 20px; }
+  .setting label.title { display: block; font-weight: 600; margin-bottom: 8px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; flex-wrap: wrap; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg label { padding: 8px 14px; cursor: pointer; border-right: 1px solid var(--border); }
+  .seg label:last-of-type { border-right: 0; }
+  .seg input:checked + label { background: var(--accent); color: var(--accent-text); }
+  .seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .check { display: flex; gap: 8px; align-items: center; margin-top: 8px; color: var(--muted); }
+  .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px; margin-top: 16px; max-height: 260px; overflow-y: auto; }
+  .thumbs figure { margin: 0; text-align: center; font-size: .72rem; color: var(--muted); }
+  .thumbs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; display: block; }
+  .thumbs figcaption { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; color: var(--muted); font-size: .9rem; gap: 8px; }
+  .progress { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 16px; }
+  .progress > div { height: 100%; background: var(--accent); width: 0; transition: width .25s; }
+  .photo {
+    width: 100%;
+    aspect-ratio: 1;
+    max-height: 60vh;
+    object-fit: cover;
+    border-radius: 12px;
+    display: block;
+    background: var(--border);
+  }
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+  @media (max-width: 420px) { .choices { grid-template-columns: 1fr; } }
+  .choices button { text-align: left; padding: 12px 14px; }
+  .choices button kbd { color: var(--muted); font: .8rem ui-monospace, monospace; margin-right: 6px; }
+  .choices button.correct { background: var(--good-bg); border-color: var(--good); color: var(--good); font-weight: 600; }
+  .choices button.wrong { background: var(--bad-bg); border-color: var(--bad); color: var(--bad); }
+  .typein { display: flex; gap: 8px; margin-top: 16px; }
+  .typein input {
+    flex: 1; min-width: 0;
+    font: inherit; padding: 10px 12px;
+    border-radius: 10px; border: 1px solid var(--border);
+    background: var(--card); color: var(--text);
+  }
+  .typein input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .feedback { min-height: 1.6em; margin-top: 12px; font-weight: 600; }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .reveal-name { font-size: 1.5rem; font-weight: 700; text-align: center; margin-top: 16px; min-height: 2.2rem; }
+  .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; flex-wrap: wrap; }
+  .big { font-size: 2.4rem; font-weight: 700; margin: 8px 0; }
+  .missed { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; margin-top: 12px; }
+  .missed figure { margin: 0; text-align: center; font-size: .85rem; }
+  .missed img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; display: block; margin-bottom: 4px; }
+  .hint { color: var(--muted); font-size: .85rem; margin-top: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <!-- ============ SETUP ============ -->
+  <section id="setup">
+    <h1>Name Game</h1>
+    <p class="sub">Learn your classmates' names. Photos stay on your computer — nothing is uploaded.</p>
+
+    <div class="card">
+      <div class="drop" id="drop">
+        <div>Drag a folder of photos here, or</div>
+        <div class="buttons">
+          <button class="primary" id="pickFolder">Choose folder</button>
+          <button id="pickFiles">Choose photos</button>
+        </div>
+        <div class="hint">Each photo's filename is used as the name, e.g. <code>Jane_Doe.jpg</code> → "Jane Doe".</div>
+        <input type="file" id="folderInput" webkitdirectory multiple class="hidden">
+        <input type="file" id="filesInput" accept="image/*" multiple class="hidden">
+      </div>
+
+      <div id="loaded" class="hidden">
+        <div class="thumbs" id="thumbs"></div>
+
+        <div class="setting">
+          <label class="title">Game mode</label>
+          <div class="seg">
+            <input type="radio" name="mode" id="m-choice" value="choice" checked><label for="m-choice">Multiple choice</label>
+            <input type="radio" name="mode" id="m-type" value="type"><label for="m-type">Type the name</label>
+            <input type="radio" name="mode" id="m-flash" value="flash"><label for="m-flash">Flashcards</label>
+          </div>
+          <label class="check" id="firstOnlyWrap"><input type="checkbox" id="firstOnly"> Accept first name only</label>
+        </div>
+
+        <div class="setting">
+          <label class="check" style="margin-top:0"><input type="checkbox" id="repeatMissed" checked> Repeat missed people until I get them right</label>
+        </div>
+
+        <div class="actions">
+          <button id="clearBtn">Use different photos</button>
+          <button class="primary" id="startBtn">Start</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ GAME ============ -->
+  <section id="game" class="hidden">
+    <div class="topbar">
+      <span id="counter"></span>
+      <span id="score"></span>
+      <button id="quitBtn">Quit</button>
+    </div>
+    <div class="progress"><div id="bar"></div></div>
+    <div class="card">
+      <img class="photo" id="photo" alt="Who is this?">
+
+      <div id="choiceArea" class="choices"></div>
+
+      <form id="typeArea" class="typein hidden" autocomplete="off">
+        <input id="guess" placeholder="Type their name…" autocapitalize="words" spellcheck="false">
+        <button class="primary" type="submit">Guess</button>
+      </form>
+
+      <div id="flashArea" class="hidden">
+        <div class="reveal-name" id="revealName"></div>
+      </div>
+
+      <div class="feedback" id="feedback"></div>
+      <div class="actions">
+        <button id="skipBtn">I don't know</button>
+        <button id="revealBtn" class="primary hidden">Show name</button>
+        <button id="gotItBtn" class="hidden">Knew it ✓</button>
+        <button id="missedItBtn" class="hidden">Didn't know ✗</button>
+        <button id="nextBtn" class="primary hidden">Next →</button>
+      </div>
+      <div class="hint" id="keyHint"></div>
+    </div>
+  </section>
+
+  <!-- ============ RESULTS ============ -->
+  <section id="results" class="hidden">
+    <h1>Done!</h1>
+    <div class="card">
+      <div class="big" id="finalScore"></div>
+      <div id="finalDetail" class="sub"></div>
+      <div id="missedWrap">
+        <h3 style="margin:20px 0 0">Worth another look</h3>
+        <div class="missed" id="missedList"></div>
+      </div>
+      <div class="actions">
+        <button id="menuBtn">Back to menu</button>
+        <button id="practiceMissedBtn">Practice these only</button>
+        <button class="primary" id="againBtn">Play again</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const IMAGE_RE = /\.(jpe?g|png|gif|webp|bmp|avif|heic|heif)$/i;
+
+  let people = [];         // { name, url }
+  let queue = [];          // people left to ask this game
+  let pool = [];           // everyone in this game
+  let current = null;
+  let answered = false;
+  let stats = { firstTry: 0, asked: 0, missed: new Set() };
+  let mode = 'choice';
+
+  // ---------- Names ----------
+  function nameFromFile(filename) {
+    let n = filename.replace(/\.[^.]+$/, '');
+    n = n.replace(/\s*\(\d+\)\s*$/, '');          // "Jane (1)"
+    n = n.replace(/^\d+[\s._-]+/, '');            // "01_Jane"
+    n = n.replace(/[_.]+/g, ' ').replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+    if (n === n.toLowerCase() || n === n.toUpperCase()) {
+      n = n.toLowerCase().replace(/(^|\s|')\p{L}/gu, c => c.toUpperCase());
+    }
+    return n;
+  }
+
+  function normalize(s) {
+    return s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function editDistance(a, b) {
+    const dp = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+    for (let j = 1; j <= b.length; j++) dp[0][j] = j;
+    for (let i = 1; i <= a.length; i++)
+      for (let j = 1; j <= b.length; j++)
+        dp[i][j] = Math.min(dp[i-1][j] + 1, dp[i][j-1] + 1, dp[i-1][j-1] + (a[i-1] === b[j-1] ? 0 : 1));
+    return dp[a.length][b.length];
+  }
+
+  // Returns 'exact', 'close' (small typo), or false
+  function checkGuess(guess, name) {
+    const g = normalize(guess), full = normalize(name);
+    if (!g) return false;
+    const targets = [full];
+    if ($('firstOnly').checked) targets.push(full.split(' ')[0]);
+    for (const t of targets) if (g === t) return 'exact';
+    for (const t of targets) {
+      const allowed = t.length <= 4 ? 0 : t.length <= 8 ? 1 : 2;
+      if (editDistance(g, t) <= allowed) return 'close';
+    }
+    return false;
+  }
+
+  // ---------- Loading ----------
+  function addFiles(fileList) {
+    const files = [...fileList].filter(f => IMAGE_RE.test(f.name) || f.type.startsWith('image/'));
+    const seen = new Set(people.map(p => p.name + '|' + p.size));
+    for (const f of files) {
+      const name = nameFromFile(f.name);
+      const key = name + '|' + f.size;
+      if (!name || seen.has(key)) continue;
+      seen.add(key);
+      people.push({ name, size: f.size, url: URL.createObjectURL(f) });
+    }
+    people.sort((a, b) => a.name.localeCompare(b.name));
+    renderLoaded();
+  }
+
+  function renderLoaded() {
+    $('loaded').classList.toggle('hidden', people.length === 0);
+    const thumbs = $('thumbs');
+    thumbs.innerHTML = '';
+    for (const p of people) {
+      const fig = document.createElement('figure');
+      const img = document.createElement('img');
+      img.src = p.url; img.alt = p.name; img.loading = 'lazy';
+      const cap = document.createElement('figcaption');
+      cap.textContent = p.name; cap.title = p.name;
+      fig.append(img, cap);
+      thumbs.append(fig);
+    }
+    $('startBtn').textContent = `Start (${people.length} ${people.length === 1 ? 'person' : 'people'})`;
+    $('startBtn').disabled = people.length < 2;
+  }
+
+  async function readEntry(entry, out) {
+    if (entry.isFile) {
+      await new Promise(res => entry.file(f => { out.push(f); res(); }, res));
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      let batch;
+      do {
+        batch = await new Promise(res => reader.readEntries(res, () => res([])));
+        for (const e of batch) await readEntry(e, out);
+      } while (batch.length);
+    }
+  }
+
+  $('pickFolder').onclick = () => $('folderInput').click();
+  $('pickFiles').onclick = () => $('filesInput').click();
+  $('folderInput').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
+  $('filesInput').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
+
+  const drop = $('drop');
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', async e => {
+    e.preventDefault();
+    drop.classList.remove('over');
+    const items = [...(e.dataTransfer.items || [])];
+    const entries = items.map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+    if (entries.length) {
+      const out = [];
+      for (const en of entries) await readEntry(en, out);
+      addFiles(out);
+    } else {
+      addFiles(e.dataTransfer.files);
+    }
+  });
+
+  $('clearBtn').onclick = () => {
+    people.forEach(p => URL.revokeObjectURL(p.url));
+    people = [];
+    renderLoaded();
+  };
+
+  document.querySelectorAll('input[name=mode]').forEach(r => r.onchange = () => {
+    $('firstOnlyWrap').classList.toggle('hidden', r.value !== 'type' || !r.checked);
+  });
+  $('firstOnlyWrap').classList.add('hidden');
+
+  // ---------- Game ----------
+  function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function show(section) {
+    for (const s of ['setup', 'game', 'results']) $(s).classList.toggle('hidden', s !== section);
+    window.scrollTo(0, 0);
+  }
+
+  function startGame(subset) {
+    mode = document.querySelector('input[name=mode]:checked').value;
+    pool = subset || people.slice();
+    queue = shuffle(pool.slice());
+    stats = { firstTry: 0, asked: 0, missed: new Set(), total: pool.length };
+    show('game');
+    nextQuestion();
+  }
+
+  function updateTop() {
+    // "done" includes the person currently on screen
+    const done = stats.total - new Set(queue).size;
+    $('counter').textContent = `${done} / ${stats.total}`;
+    $('score').textContent = `✓ ${stats.firstTry}  ·  ✗ ${stats.missed.size}`;
+    $('bar').style.width = ((done - 1) / stats.total * 100) + '%';
+  }
+
+  function setButtons(state) {
+    // state: 'asking' | 'answered' | 'flash-hidden' | 'flash-shown'
+    $('skipBtn').classList.toggle('hidden', state !== 'asking');
+    $('nextBtn').classList.toggle('hidden', state !== 'answered');
+    $('revealBtn').classList.toggle('hidden', state !== 'flash-hidden');
+    $('gotItBtn').classList.toggle('hidden', state !== 'flash-shown');
+    $('missedItBtn').classList.toggle('hidden', state !== 'flash-shown');
+  }
+
+  function nextQuestion() {
+    if (!queue.length) return finish();
+    current = queue.shift();
+    answered = false;
+    updateTop();
+    $('photo').src = current.url;
+    $('feedback').textContent = '';
+    $('feedback').className = 'feedback';
+
+    $('choiceArea').classList.toggle('hidden', mode !== 'choice');
+    $('typeArea').classList.toggle('hidden', mode !== 'type');
+    $('flashArea').classList.toggle('hidden', mode !== 'flash');
+
+    if (mode === 'choice') {
+      const others = shuffle(people.filter(p => p !== current && p.name !== current.name)).slice(0, 3);
+      const opts = shuffle([current, ...others]);
+      const area = $('choiceArea');
+      area.innerHTML = '';
+      opts.forEach((p, i) => {
+        const b = document.createElement('button');
+        b.innerHTML = `<kbd>${i + 1}</kbd>`;
+        b.append(document.createTextNode(p.name));
+        b.dataset.correct = p === current ? '1' : '';
+        b.onclick = () => answerChoice(b);
+        area.append(b);
+      });
+      $('keyHint').textContent = 'Keys: 1–4 to answer, Enter for next';
+      setButtons('asking');
+    } else if (mode === 'type') {
+      $('guess').value = '';
+      $('guess').disabled = false;
+      setButtons('asking');
+      $('keyHint').textContent = 'Small typos are OK. Enter to submit / continue';
+      setTimeout(() => $('guess').focus(), 0);
+    } else {
+      $('revealName').textContent = '';
+      setButtons('flash-hidden');
+      $('keyHint').textContent = 'Keys: Space to reveal, Y = knew it, N = didn\'t';
+    }
+  }
+
+  function record(correct) {
+    answered = true;
+    stats.asked++;
+    const firstTime = !stats.missed.has(current) && !current._seenThisGame;
+    current._seenThisGame = true;
+    if (correct) {
+      if (firstTime) stats.firstTry++;
+    } else {
+      stats.missed.add(current);
+      if ($('repeatMissed').checked) {
+        // bring them back a few questions later
+        const pos = Math.min(queue.length, 2 + Math.floor(Math.random() * 3));
+        queue.splice(pos, 0, current);
+      }
+    }
+    $('score').textContent = `✓ ${stats.firstTry}  ·  ✗ ${stats.missed.size}`;
+  }
+
+  function answerChoice(btn) {
+    if (answered) return;
+    const correct = btn.dataset.correct === '1';
+    for (const b of $('choiceArea').children) {
+      b.disabled = true;
+      if (b.dataset.correct) b.classList.add('correct');
+    }
+    if (!correct) btn.classList.add('wrong');
+    record(correct);
+    feedback(correct, correct ? 'Correct!' : `That's ${current.name}`);
+    setButtons('answered');
+    $('nextBtn').focus();
+  }
+
+  function feedback(good, text) {
+    $('feedback').textContent = text;
+    $('feedback').className = 'feedback ' + (good ? 'good' : 'bad');
+  }
+
+  $('typeArea').onsubmit = e => {
+    e.preventDefault();
+    if (answered) return nextQuestion();
+    const g = $('guess').value;
+    if (!g.trim()) return;
+    const res = checkGuess(g, current.name);
+    record(!!res);
+    $('guess').disabled = true;
+    if (res === 'exact') feedback(true, `Correct! ${current.name}`);
+    else if (res === 'close') feedback(true, `Close enough! It's spelled "${current.name}"`);
+    else feedback(false, `It's ${current.name}`);
+    setButtons('answered');
+    $('nextBtn').focus();
+  };
+
+  $('skipBtn').onclick = () => {
+    if (answered) return;
+    if (mode === 'choice') {
+      for (const b of $('choiceArea').children) {
+        b.disabled = true;
+        if (b.dataset.correct) b.classList.add('correct');
+      }
+    } else if (mode === 'type') {
+      $('guess').disabled = true;
+    }
+    record(false);
+    feedback(false, `It's ${current.name}`);
+    setButtons('answered');
+    $('nextBtn').focus();
+  };
+
+  $('revealBtn').onclick = () => {
+    $('revealName').textContent = current.name;
+    setButtons('flash-shown');
+  };
+  $('gotItBtn').onclick = () => { record(true); nextQuestion(); };
+  $('missedItBtn').onclick = () => { record(false); nextQuestion(); };
+  $('nextBtn').onclick = nextQuestion;
+  $('quitBtn').onclick = () => finish();
+
+  document.addEventListener('keydown', e => {
+    if ($('game').classList.contains('hidden')) return;
+    if (e.target.tagName === 'INPUT' && !answered) return;
+    if (mode === 'choice' && !answered && /^[1-4]$/.test(e.key)) {
+      const b = $('choiceArea').children[+e.key - 1];
+      if (b) b.click();
+    } else if (mode === 'flash') {
+      if ((e.key === ' ' || e.key === 'Enter') && !$('revealBtn').classList.contains('hidden')) { e.preventDefault(); $('revealBtn').click(); }
+      else if (e.key.toLowerCase() === 'y' && !$('gotItBtn').classList.contains('hidden')) $('gotItBtn').click();
+      else if (e.key.toLowerCase() === 'n' && !$('missedItBtn').classList.contains('hidden')) $('missedItBtn').click();
+    } else if (answered && e.key === 'Enter' && e.target.tagName !== 'BUTTON') {
+      e.preventDefault();
+      nextQuestion();
+    }
+  });
+
+  function finish() {
+    pool.forEach(p => delete p._seenThisGame);
+    let seen = stats.total - new Set(queue).size;
+    if (current && !answered && !queue.includes(current) && !stats.missed.has(current)) seen--;
+    show('results');
+    const pct = seen ? Math.round(stats.firstTry / seen * 100) : 0;
+    $('finalScore').textContent = `${stats.firstTry} / ${seen} on the first try`;
+    $('finalDetail').textContent = seen < stats.total
+      ? `(${pct}% — stopped early, ${stats.total - seen} not shown)`
+      : pct === 100 ? 'Perfect — you know everyone! 🎉' : `${pct}% — keep practicing!`;
+    const missed = [...stats.missed];
+    $('missedWrap').classList.toggle('hidden', missed.length === 0);
+    $('practiceMissedBtn').classList.toggle('hidden', missed.length === 0);
+    const list = $('missedList');
+    list.innerHTML = '';
+    for (const p of missed) {
+      const fig = document.createElement('figure');
+      const img = document.createElement('img');
+      img.src = p.url; img.alt = p.name;
+      const cap = document.createElement('figcaption');
+      cap.textContent = p.name;
+      fig.append(img, cap);
+      list.append(fig);
+    }
+    $('practiceMissedBtn').onclick = () => startGame(missed);
+  }
+
+  $('startBtn').onclick = () => startGame();
+  $('againBtn').onclick = () => startGame();
+  $('menuBtn').onclick = () => show('setup');
+})();
+</script>
+</body>
+</html>
