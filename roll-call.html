@@ -22,6 +22,9 @@
     --tag: #D93A3A;
     --tag-paper: #FFFFFF;
     --tag-text: #1A1C24;
+    --ridge: #C3CCDD;
+    --ridge-far: #DCE2EE;
+    --snow: #FFFFFF;
     --shadow: 0 1px 2px rgba(22, 28, 43, .06), 0 6px 20px rgba(22, 28, 43, .06);
 
     --f-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
@@ -38,6 +41,7 @@
       --marker: #E7CC3A; --marker-ink: #1E1900;
       --good: #5BD08A; --good-soft: #15301F; --bad: #FF8A7E; --bad-soft: #3A1C1A;
       --tag: #E0524F;
+      --ridge: #232B45; --ridge-far: #1A2036; --snow: #C9D3EA;
       --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .25);
     }
   }
@@ -49,6 +53,7 @@
     --marker: #E7CC3A; --marker-ink: #1E1900;
     --good: #5BD08A; --good-soft: #15301F; --bad: #FF8A7E; --bad-soft: #3A1C1A;
     --tag: #E0524F;
+    --ridge: #232B45; --ridge-far: #1A2036; --snow: #C9D3EA;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .25);
   }
 
@@ -132,7 +137,7 @@
   button:focus-visible, input:focus-visible, .seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
   button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
   button.big { padding: 14px 22px; font-size: 1.05rem; }
-  button.ghost { background: transparent; }
+  button.ghost-btn { background: transparent; }
   button.danger { color: var(--bad); }
   button.danger.armed { background: var(--bad); border-color: var(--bad); color: var(--surface); }
   button:disabled { cursor: not-allowed; opacity: .55; }
@@ -203,8 +208,114 @@
   .person button { padding: 5px 8px; font-size: .8rem; }
 
   /* ---------- Game ---------- */
+  /* The run is a climb: a full-screen layer whose sky thins out as --alt goes 0 → 1 */
+  .climb {
+    --alt: 0; --shake: 0; --beat: 1.2s;
+    position: fixed; inset: 0; z-index: 50;
+    overflow-y: auto; overflow-x: hidden;
+    background: var(--bg);
+    padding-inline: 16px;
+    padding-block: calc(env(safe-area-inset-top, 0px) + 20px) calc(env(safe-area-inset-bottom, 0px) + 32px);
+  }
+  .sky { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  .sky .air {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, #03040B 0%, #0B1433 45%, #26386E 100%);
+    opacity: calc(var(--alt) * var(--alt) * .96);
+    transition: opacity .8s ease;
+  }
+  .sky .stars {
+    position: absolute; inset: 0;
+    background-image:
+      radial-gradient(1.5px 1.5px at 12% 18%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 27% 8%, #fff 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 44% 26%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 63% 12%, #fff 50%, transparent 51%),
+      radial-gradient(2px 2px at 78% 30%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 88% 6%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 6% 40%, #fff 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 94% 44%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 55% 4%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 35% 38%, #fff 50%, transparent 51%);
+    opacity: clamp(0, calc((var(--alt) - .55) * 2.2), 1);
+    transition: opacity 1s ease;
+  }
+  .sky .wind {
+    position: absolute; inset: -20% -50%;
+    background: repeating-linear-gradient(100deg, transparent 0 46px, rgba(255, 255, 255, .07) 46px 48px, transparent 48px 130px);
+    opacity: clamp(0, calc((var(--alt) - .35) * 1.6), .9);
+    animation: gust calc(2.4s - var(--alt) * 1.6s) linear infinite;
+  }
+  @keyframes gust { to { transform: translateX(-130px); } }
+  .sky .ridge {
+    position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 46vh;
+    transform: translateY(calc(var(--alt) * 38vh));
+    transition: transform .9s cubic-bezier(.3, .7, .3, 1);
+  }
+  .sky .ridge .far { fill: var(--ridge-far); }
+  .sky .ridge .near { fill: var(--ridge); }
+  .sky .ridge .cap { fill: var(--snow); }
+  .sky .vignette {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 48%, rgba(40, 0, 6, .55) 100%);
+    opacity: clamp(0, calc((var(--alt) - .5) * 2), 1);
+    animation: gasp var(--beat) ease-in-out infinite;
+  }
+  @keyframes gasp { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.6); } }
+  .sky .flash { position: absolute; inset: 0; background: var(--bad); opacity: 0; }
+  .sky .flash.on { animation: flash .45s ease-out; }
+  @keyframes flash { 0% { opacity: .28; } 100% { opacity: 0; } }
+
+  .zonecall {
+    position: absolute; left: 50%; top: 14px; z-index: 3; max-width: calc(100% - 24px);
+    transform: translateX(-50%);
+    padding: 8px 16px; border-radius: 999px;
+    background: var(--ink); color: var(--bg);
+    font: 800 .95rem/1.2 var(--f-display); font-stretch: 115%; letter-spacing: .02em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .3);
+    opacity: 0;
+  }
+  .zonecall.on { animation: call 2.2s ease both; }
+  .zonecall.danger { background: var(--bad); color: #FFFFFF; }
+  .zonecall.summit { background: var(--marker); color: var(--marker-ink); }
+  @keyframes call { 0% { opacity: 0; transform: translate(-50%, -10px); } 12%, 80% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, -6px); } }
+
+  .climb .stage {
+    position: relative;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 18px; padding: 18px;
+    box-shadow: var(--shadow);
+    animation: tremor .14s linear infinite;
+  }
+  @keyframes tremor {
+    0%   { transform: translate(0, 0); }
+    25%  { transform: translate(calc(var(--shake) * 1px), calc(var(--shake) * -.7px)) rotate(calc(var(--shake) * .06deg)); }
+    50%  { transform: translate(calc(var(--shake) * -.8px), calc(var(--shake) * .5px)); }
+    75%  { transform: translate(calc(var(--shake) * .5px), calc(var(--shake) * .9px)) rotate(calc(var(--shake) * -.06deg)); }
+    100% { transform: translate(0, 0); }
+  }
+  .quake.jolt { animation: jolt .42s cubic-bezier(.36, .07, .19, .97); }
+  @keyframes jolt {
+    10%, 90% { transform: translateX(-2px); }
+    20%, 80% { transform: translateX(5px); }
+    30%, 50%, 70% { transform: translateX(-9px) rotate(-.6deg); }
+    40%, 60% { transform: translateX(9px) rotate(.6deg); }
+  }
+
   .gamebar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
-  .clock { font: 600 1.6rem/1 var(--f-mono); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .clockbox { text-align: center; }
+  .clock { font: 600 1.6rem/1 var(--f-mono); font-variant-numeric: tabular-nums; letter-spacing: -.02em; display: inline-block; }
+  .climb.pulse .clock { animation: beat var(--beat) ease-in-out infinite; }
+  .climb.redline .clock { color: var(--bad); }
+  @keyframes beat { 0%, 100% { transform: scale(1); } 12% { transform: scale(1.08); } 24% { transform: scale(1); } 36% { transform: scale(1.04); } }
+  .ghost { font: 500 .75rem var(--f-mono); color: var(--muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .ghost.beaten { color: var(--bad); }
+  .alti { text-align: right; }
+  .alti .m { font: 600 1.05rem/1.1 var(--f-mono); font-variant-numeric: tabular-nums; }
+  .alti .z { font-size: .78rem; font-weight: 600; color: var(--muted); }
+  .alti .z.danger { color: var(--bad); }
+  .gameright { display: flex; align-items: center; gap: 12px; }
   .progress { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-bottom: 16px; }
   .progress > div { height: 100%; width: 0; background: var(--accent); transition: width .25s; }
   .stage { max-width: 560px; margin: 0 auto; }
@@ -244,7 +355,11 @@
   .nametag .mni { font: 600 .72rem/1.3 var(--f-body); letter-spacing: .04em; }
   .nametag .nm { font: 700 clamp(1.4rem, 5vw, 2rem)/1.15 var(--f-hand); color: var(--tag-text); padding: 10px 10px 12px; overflow-wrap: anywhere; }
   @keyframes stick { from { transform: translateX(-50%) rotate(-10deg) scale(.8); opacity: 0; } }
-  @media (prefers-reduced-motion: reduce) { .nametag { animation: none; } .progress > div { transition: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .nametag, .climb .stage, .quake.jolt, .climb.pulse .clock, .sky .wind, .sky .vignette { animation: none; }
+    .progress > div, .sky .ridge, .sky .air { transition: none; }
+  }
+  #fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 70; }
 
   /* ---------- Results ---------- */
   .result { text-align: center; max-width: 560px; margin: 0 auto; }
@@ -371,21 +486,44 @@
   </section>
 
   <!-- ============ GAME ============ -->
-  <section id="game" hidden>
+  <section id="game" class="climb" hidden>
+    <div class="sky" aria-hidden="true">
+      <div class="air"></div>
+      <div class="stars"></div>
+      <svg class="ridge" viewBox="0 0 1200 400" preserveAspectRatio="none">
+        <path class="far" d="M0 400 L0 250 L120 190 L230 235 L360 140 L470 205 L600 95 L720 180 L840 120 L960 210 L1080 150 L1200 200 L1200 400 Z"/>
+        <path class="near" d="M0 400 L0 320 L150 260 L260 300 L420 200 L520 260 L640 170 L760 250 L900 215 L1030 290 L1200 250 L1200 400 Z"/>
+        <path class="cap" d="M420 200 L452 222 L437 226 L425 216 L405 212 Z M640 170 L676 197 L658 199 L644 188 L620 186 Z"/>
+      </svg>
+      <div class="wind"></div>
+      <div class="vignette"></div>
+      <div class="flash" id="flash"></div>
+    </div>
     <div class="stage">
+     <div class="quake" id="quake">
       <div class="gamebar">
         <div>
           <div class="eyebrow" id="gameLabel">Ranked run</div>
           <div class="num" id="gameCounter"></div>
         </div>
-        <div class="clock" id="clock" hidden>0:00.0</div>
-        <button class="ghost" id="quitBtn">Quit</button>
+        <div class="clockbox" id="clockBox" hidden>
+          <div class="clock" id="clock">0:00.0</div>
+          <div class="ghost" id="ghost"></div>
+        </div>
+        <div class="gameright">
+          <div class="alti">
+            <div class="m" id="altM">5,364 m</div>
+            <div class="z" id="altZone">Base Camp</div>
+          </div>
+          <button class="ghost-btn" id="quitBtn">Quit</button>
+        </div>
       </div>
       <div class="progress"><div id="bar"></div></div>
 
       <div class="photo-wrap">
         <img class="photo" id="photo" alt="Who is this?">
         <div id="tagSlot"></div>
+        <div class="zonecall" id="zoneCall" aria-live="polite"></div>
       </div>
 
       <div id="choiceArea" class="choices"></div>
@@ -403,8 +541,10 @@
         <button id="nextBtn" class="primary" hidden>Next</button>
       </div>
       <p class="hint" id="keyHint"></p>
+     </div>
     </div>
   </section>
+  <canvas id="fx" aria-hidden="true"></canvas>
 
   <!-- ============ RESULT ============ -->
   <section id="result" hidden>
@@ -413,6 +553,7 @@
         <div class="eyebrow" id="resLabel">Ranked run</div>
         <div class="score num" id="resScore"></div>
         <div class="time" id="resTime"></div>
+        <p class="muted" id="resAlt"></p>
         <p class="verdict" id="resVerdict"></p>
         <p class="note" id="resNote" hidden></p>
       </div>
@@ -483,6 +624,8 @@
   }
   function show(section) {
     for (const s of ['home', 'game', 'result']) $(s).hidden = s !== section;
+    if (isAdmin) $('orgBar').hidden = section !== 'home';
+    if (section !== 'game') { $('game').classList.remove('pulse', 'redline'); $('game').style.setProperty('--alt', 0); $('game').style.setProperty('--shake', 0); }
     window.scrollTo(0, 0);
   }
   // Better = higher accuracy, then faster, then earlier
@@ -761,6 +904,114 @@
     $('cfgPrize').value = config.prize || '';
   }
 
+  // ================= Climb effects =================
+  // The run is an Everest climb: each correct answer gains altitude from Base Camp to the summit.
+  const BASE_M = 5364, TOP_M = 8849;
+  const ZONES = [[5364, 'Base Camp'], [6065, 'Camp 1'], [6400, 'Camp 2'], [7162, 'Camp 3'], [7950, 'Camp 4'], [8000, 'Death zone'], [8849, 'Summit']];
+  const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const zoneFor = m => ZONES.reduce((z, q) => m >= q[0] - 0.5 ? q : z, ZONES[0]);
+  const fmtM = m => Math.round(m).toLocaleString('en-US') + ' m';
+  const oxygen = m => Math.round(100 * Math.exp(-m / 7600));   // % of sea-level air pressure
+  let shownM = BASE_M, altAnim = 0;
+
+  function setAltitude(frac, announce) {
+    const game = $('game');
+    const m = BASE_M + frac * (TOP_M - BASE_M);
+    game.style.setProperty('--alt', frac.toFixed(3));
+    const shake = reduceMotion ? 0 : Math.max(0, (frac - .3) / .7) * 2.4 + (m >= 8000 ? 1 : 0);
+    game.style.setProperty('--shake', shake.toFixed(2));
+    game.style.setProperty('--beat', (1.2 - frac * .75).toFixed(2) + 's');
+    game.classList.toggle('pulse', frac >= .2);
+    const prev = zoneFor(shownM), z = zoneFor(m);
+    const from = shownM, t0 = performance.now();
+    cancelAnimationFrame(altAnim);
+    const step = t => {
+      const k = Math.min(1, (t - t0) / 500);
+      $('altM').textContent = fmtM(from + (m - from) * k);
+      if (k < 1) altAnim = requestAnimationFrame(step);
+    };
+    altAnim = requestAnimationFrame(step);
+    shownM = m;
+    $('altZone').textContent = `${z[1]} · O₂ ${oxygen(m)}%`;
+    $('altZone').classList.toggle('danger', m >= 8000);
+    if (announce && z[0] > prev[0]) zoneCall(z);
+  }
+
+  function zoneCall(z) {
+    const el = $('zoneCall');
+    el.className = 'zonecall';
+    void el.offsetWidth;
+    el.textContent = z[1] === 'Death zone' ? 'Death zone · thin air above 8,000 m'
+      : z[1] === 'Summit' ? 'Summit · 8,849 m' : `${z[1]} · ${fmtM(z[0])}`;
+    el.classList.add('on');
+    if (z[1] === 'Death zone') el.classList.add('danger');
+    if (z[1] === 'Summit') el.classList.add('summit');
+  }
+
+  function stumble() {
+    const q = $('quake'), f = $('flash');
+    q.classList.remove('jolt'); f.classList.remove('on');
+    void q.offsetWidth;
+    if (!reduceMotion) q.classList.add('jolt');
+    f.classList.add('on');
+    try { navigator.vibrate && navigator.vibrate([70, 40, 70]); } catch {}
+  }
+
+  // Confetti: a small canvas particle system
+  const fx = $('fx'), fxCtx = fx.getContext('2d');
+  let parts = [], fxFrame = 0;
+  function fxColors() {
+    const cs = getComputedStyle(document.documentElement);
+    return ['--accent', '--marker', '--good', '--tag'].map(v => cs.getPropertyValue(v).trim() || '#2747D0');
+  }
+  function confetti({ x, y, count = 40, spread = 70, power = 9, angle = -90 }) {
+    if (reduceMotion) count = Math.min(count, 10);
+    const cols = fxColors();
+    for (let i = 0; i < count; i++) {
+      const a = (angle + (Math.random() - .5) * spread) * Math.PI / 180;
+      const v = power * (.55 + Math.random() * .7);
+      parts.push({
+        x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+        r: Math.random() * Math.PI, vr: (Math.random() - .5) * .35,
+        w: 6 + Math.random() * 5, h: 3 + Math.random() * 4,
+        c: cols[i % cols.length], life: 0, ttl: 80 + Math.random() * 60,
+      });
+    }
+    if (!fxFrame) fxFrame = requestAnimationFrame(tickFx);
+  }
+  function tickFx() {
+    const dpr = window.devicePixelRatio || 1, W = innerWidth, H = innerHeight;
+    if (fx.width !== Math.round(W * dpr) || fx.height !== Math.round(H * dpr)) { fx.width = Math.round(W * dpr); fx.height = Math.round(H * dpr); }
+    fxCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    fxCtx.clearRect(0, 0, W, H);
+    parts = parts.filter(p => p.life < p.ttl && p.y < H + 40);
+    for (const p of parts) {
+      p.vy += .28; p.vx *= .985; p.vy *= .985;
+      p.x += p.vx; p.y += p.vy; p.r += p.vr; p.life++;
+      fxCtx.save();
+      fxCtx.globalAlpha = Math.min(1, (p.ttl - p.life) / 25);
+      fxCtx.translate(p.x, p.y);
+      fxCtx.rotate(p.r);
+      fxCtx.scale(1, Math.cos(p.life * .18));
+      fxCtx.fillStyle = p.c;
+      fxCtx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      fxCtx.restore();
+    }
+    fxFrame = parts.length ? requestAnimationFrame(tickFx) : 0;
+    if (!parts.length) fxCtx.clearRect(0, 0, W, H);
+  }
+  function burstFrom(el, count) {
+    const r = el.getBoundingClientRect();
+    confetti({ x: r.left + r.width / 2, y: r.top + r.height / 2, count });
+  }
+  function celebrate(big) {
+    const n = big ? 6 : 2;
+    for (let i = 0; i < n; i++) setTimeout(() => {
+      const left = i % 2 === 0;
+      confetti({ x: innerWidth * (left ? .08 : .92), y: innerHeight * .95, count: big ? 90 : 60, spread: 45, power: 19, angle: left ? -65 : -115 });
+    }, i * 300);
+  }
+
   // ================= Game engine =================
   let G = null;
 
@@ -783,8 +1034,16 @@
     };
     show('game');
     $('gameLabel').textContent = G.ranked ? 'Ranked run' : 'Practice';
-    $('clock').hidden = !G.ranked;
+    $('clockBox').hidden = !G.ranked;
     $('clock').textContent = fmtTime(0);
+    const top = ranked()[0];
+    G.target = top ? top.ms : null;
+    $('ghost').textContent = !top ? 'First finisher sets the pace'
+      : top.id === myId ? `Your record ${fmtTime(top.ms)}` : `Top time ${fmtTime(top.ms)}`;
+    $('ghost').classList.remove('beaten');
+    $('game').classList.remove('redline');
+    shownM = BASE_M;
+    setAltitude(0, false);
     $('choiceArea').innerHTML = '';
     $('photo').removeAttribute('src');
     $('tagSlot').innerHTML = '';
@@ -863,7 +1122,14 @@
         if (!G || G.answered) return;
         G.qStart = performance.now();
         clearInterval(G.tick);
-        G.tick = setInterval(() => { $('clock').textContent = fmtTime(G.ms + performance.now() - G.qStart); }, 100);
+        G.tick = setInterval(() => {
+          const cur = G.ms + performance.now() - G.qStart;
+          $('clock').textContent = fmtTime(cur);
+          if (G.target && cur > G.target && !$('game').classList.contains('redline')) {
+            $('game').classList.add('redline');
+            $('ghost').classList.add('beaten');
+          }
+        }, 100);
       };
       if (img.complete && img.naturalWidth) begin(); else { img.onload = begin; img.onerror = begin; }
     }
@@ -879,7 +1145,9 @@
     }
     const first = !G.seen.has(G.current.id);
     G.seen.add(G.current.id);
-    if (correct) { if (first && !G.missed.has(G.current)) G.correct++; }
+    if (correct) {
+      if (first && !G.missed.has(G.current)) { G.correct++; setAltitude(G.correct / G.total, true); }
+    }
     else {
       G.missed.add(G.current);
       if (!G.ranked) {
@@ -900,8 +1168,8 @@
     for (const b of $('choiceArea').children) { b.disabled = true; if (b.dataset.correct) b.classList.add('correct'); }
     if (!correct) btn.classList.add('wrong');
     record(correct);
-    if (correct) feedback(true, 'Correct');
-    else { feedback(false, 'Not quite'); showTag(G.current.name); }
+    if (correct) { feedback(true, 'Correct'); burstFrom(btn, 26 + Math.round(G.correct / G.total * 60)); }
+    else { feedback(false, 'Not quite'); showTag(G.current.name); stumble(); }
     if (G.ranked) G.advance = setTimeout(nextQuestion, correct ? 450 : 1300);
     else { setButtons('answered'); $('nextBtn').focus(); }
   }
@@ -917,7 +1185,8 @@
     $('guess').disabled = true;
     if (res === 'exact') feedback(true, 'Correct');
     else if (res === 'close') feedback(true, `Close enough. It's spelled ${G.current.name}.`);
-    else { feedback(false, 'Not quite'); showTag(G.current.name); }
+    else { feedback(false, 'Not quite'); showTag(G.current.name); stumble(); }
+    if (res) burstFrom($('guess'), 26 + Math.round(G.correct / G.total * 60));
     setButtons('answered');
     $('nextBtn').focus();
   };
@@ -932,8 +1201,8 @@
     $('nextBtn').focus();
   };
   $('revealBtn').onclick = () => { showTag(G.current.name); setButtons('flash-shown'); };
-  $('gotItBtn').onclick = () => { record(true); nextQuestion(); };
-  $('missedItBtn').onclick = () => { record(false); nextQuestion(); };
+  $('gotItBtn').onclick = () => { record(true); burstFrom($('gotItBtn'), 30); nextQuestion(); };
+  $('missedItBtn').onclick = () => { record(false); stumble(); nextQuestion(); };
   $('nextBtn').onclick = () => nextQuestion();
   $('quitBtn').onclick = () => {
     if (!G) return;
@@ -970,6 +1239,12 @@
     $('resTime').textContent = g.ranked ? fmtTime(g.ms) : 'correct on the first try';
     $('resTime').hidden = false;
     $('resNote').hidden = true;
+    const reachedM = BASE_M + (g.total ? g.correct / g.total : 0) * (TOP_M - BASE_M);
+    const rz = zoneFor(reachedM);
+    $('resAlt').textContent = rz[1] === 'Summit' ? 'You reached the summit: 8,849 m.'
+      : `You reached ${rz[1] === 'Death zone' ? 'the death zone' : rz[1]} at ${fmtM(reachedM)}.`;
+    if (g.correct === g.total && g.total > 0) celebrate(true);
+    else if (g.correct / Math.max(1, g.total) >= .6) celebrate(false);
     $('resVerdict').textContent = '';
 
     const missed = [...g.missed];
@@ -1030,6 +1305,7 @@
     scores = scores.filter(s => s.id !== myId).concat(merged);
     const rank = ranked().findIndex(s => s.id === myId) + 1;
     if (improved) {
+      if (run.correct !== run.total) celebrate(true);
       $('resVerdict').textContent = prev ? `New personal best. You're #${rank}.` : `You're on the board at #${rank}.`;
     } else {
       $('resVerdict').textContent = `Your best is still ${prev.correct}/${prev.total} in ${fmtTime(prev.ms)} (#${rank}).`;
