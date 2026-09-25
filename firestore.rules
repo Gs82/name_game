@@ -1,0 +1,63 @@
+rules_version = '2';
+
+// Security rules for Roll Call. Paste into Firebase console → Firestore Database → Rules, then Publish.
+// Replace organizer@example.com with the organizer's Google email (same as docs/config.js).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOrganizer() {
+      return signedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() in ['organizer@example.com'];
+    }
+
+    function challenge() {
+      return get(/databases/$(database)/documents/meta/challenge).data;
+    }
+
+    // A player's best run. Totals must match the class size, times can't be
+    // impossibly fast, the name must be their Google name, and runs only count
+    // during the challenge window.
+    function validScore() {
+      let d = request.resource.data;
+      let c = challenge();
+      let keptBest = resource != null
+        && d.correct == resource.data.correct
+        && d.total == resource.data.total
+        && d.ms == resource.data.ms
+        && d.achievedAt == resource.data.achievedAt;
+      return d.keys().hasOnly(['correct', 'total', 'ms', 'achievedAt', 'attempts', 'lastPlayedAt', 'name', 'photo'])
+        && d.correct is int && d.total is int && d.ms is int
+        && d.achievedAt is int && d.lastPlayedAt is int && d.attempts is int
+        && d.correct >= 0 && d.correct <= d.total && d.total > 0
+        && (keptBest || (d.total == c.size && d.ms >= d.total * 250))
+        && d.attempts >= 1 && d.attempts <= 100000
+        && d.name == request.auth.token.get('name', '')
+        && d.photo is string && d.photo.size() <= 1000
+        && request.time.toMillis() >= c.startsAt
+        && request.time.toMillis() <= c.endsAt + 60000;
+    }
+
+    // Passcode check value and challenge settings
+    match /meta/{docId} {
+      allow read: if signedIn();
+      allow write: if isOrganizer();
+    }
+
+    // Encrypted photos and names
+    match /roster/{personId} {
+      allow read: if signedIn();
+      allow write: if isOrganizer();
+    }
+
+    match /scores/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && request.auth.uid == uid && validScore();
+      allow delete: if isOrganizer();
+    }
+  }
+}
