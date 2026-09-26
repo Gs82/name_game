@@ -8,7 +8,7 @@ The week-long challenge as a public website: <https://gs82.github.io/name_game/>
 
 - **Ranked run:** every classmate appears once, with four name options each. Most correct wins, and ties go to the faster time. Each correct answer climbs from Base Camp toward the Everest summit, with confetti, shaking and thinning air as players get higher. Only a player's best run counts.
 - **Practice:** multiple choice, type-the-name, or flashcards. Not timed or recorded.
-- **Players** sign in with their school email and a password. Only emails on the organizer's class list can get in.
+- **Players** join from the organizer's invite link with their school email, name and a password. The link carries the class code, and there's no confirmation email. Only emails on the class list can get in.
 - **The organizer** pastes in the class list, uploads the photo folder, fixes names, sets the dates and prize, and clears the leaderboard.
 
 | File | What it is |

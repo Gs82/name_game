@@ -230,6 +230,7 @@
     font: .82rem var(--f-mono); background: var(--sunk);
   }
   .allowlist li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .allowlist li.joined { border-color: var(--good); background: var(--good-soft); color: var(--good); }
   .allowlist li button { padding: 3px 8px; font-size: .75rem; border-radius: 999px; }
 
   /* ---------- Admin ---------- */
@@ -254,7 +255,7 @@
   /* ---------- Game ---------- */
   /* The run is a climb: a full-screen layer whose sky thins out as --alt goes 0 → 1 */
   .climb {
-    --alt: 0; --shake: 0; --beat: 1.2s;
+    --alt: 0; --beat: 1.2s;
     position: fixed; inset: 0; z-index: 50;
     overflow-y: auto; overflow-x: hidden;
     background: var(--bg);
@@ -303,12 +304,7 @@
     position: absolute; inset: 0;
     background: radial-gradient(ellipse at center, transparent 48%, rgba(40, 0, 6, .55) 100%);
     opacity: clamp(0, calc((var(--alt) - .5) * 2), 1);
-    animation: gasp var(--beat) ease-in-out infinite;
   }
-  @keyframes gasp { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.6); } }
-  .sky .flash { position: absolute; inset: 0; background: var(--bad); opacity: 0; }
-  .sky .flash.on { animation: flash .45s ease-out; }
-  @keyframes flash { 0% { opacity: .28; } 100% { opacity: 0; } }
 
   .zonecall {
     position: absolute; left: 50%; top: 14px; z-index: 3; max-width: calc(100% - 24px);
@@ -330,21 +326,6 @@
     background: var(--surface); border: 1px solid var(--line);
     border-radius: 18px; padding: 18px;
     box-shadow: var(--shadow);
-    animation: tremor .14s linear infinite;
-  }
-  @keyframes tremor {
-    0%   { transform: translate(0, 0); }
-    25%  { transform: translate(calc(var(--shake) * 1px), calc(var(--shake) * -.7px)) rotate(calc(var(--shake) * .06deg)); }
-    50%  { transform: translate(calc(var(--shake) * -.8px), calc(var(--shake) * .5px)); }
-    75%  { transform: translate(calc(var(--shake) * .5px), calc(var(--shake) * .9px)) rotate(calc(var(--shake) * -.06deg)); }
-    100% { transform: translate(0, 0); }
-  }
-  .quake.jolt { animation: jolt .42s cubic-bezier(.36, .07, .19, .97); }
-  @keyframes jolt {
-    10%, 90% { transform: translateX(-2px); }
-    20%, 80% { transform: translateX(5px); }
-    30%, 50%, 70% { transform: translateX(-9px) rotate(-.6deg); }
-    40%, 60% { transform: translateX(9px) rotate(.6deg); }
   }
 
   .gamebar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
@@ -400,7 +381,7 @@
   .nametag .nm { font: 700 clamp(1.4rem, 5vw, 2rem)/1.15 var(--f-hand); color: var(--tag-text); padding: 10px 10px 12px; overflow-wrap: anywhere; }
   @keyframes stick { from { transform: translateX(-50%) rotate(-10deg) scale(.8); opacity: 0; } }
   @media (prefers-reduced-motion: reduce) {
-    .nametag, .climb .stage, .quake.jolt, .climb.pulse .clock, .sky .wind, .sky .vignette { animation: none; }
+    .nametag, .climb.pulse .clock, .sky .wind, .finale .word, .finale .hero { animation: none; }
     .progress > div, .sky .ridge, .sky .air { transition: none; }
   }
   /* Phones and tablets */
@@ -414,6 +395,40 @@
     .gameright { width: 100%; justify-content: space-between; }
     .alti { text-align: left; }
   }
+  /* ---------- Finish screen: TYPE SHIT + Tim the Beaver ---------- */
+  .finale {
+    position: fixed; inset: 0; z-index: 65; overflow: hidden; cursor: pointer;
+    background: radial-gradient(ellipse at center, rgba(20, 12, 40, .78), rgba(5, 4, 12, .92));
+    animation: finaleIn .25s ease-out both;
+  }
+  .finale.out { animation: finaleOut .45s ease-in both; }
+  @keyframes finaleIn { from { opacity: 0; } }
+  @keyframes finaleOut { to { opacity: 0; } }
+  .finale .word {
+    position: absolute; white-space: nowrap; pointer-events: none;
+    font-family: var(--f-display); font-weight: 900; font-stretch: 125%; letter-spacing: -.02em; line-height: 1;
+    -webkit-text-stroke: 2px #0B0B12; paint-order: stroke fill;
+    text-shadow: 4px 4px 0 #0B0B12;
+    transform: translate(-50%, -50%) rotate(var(--r)) scale(1);
+    animation: stamp .42s cubic-bezier(.2, 1.6, .4, 1) both;
+    animation-delay: var(--d);
+  }
+  @keyframes stamp { from { transform: translate(-50%, -50%) rotate(var(--r)) scale(2.6); opacity: 0; } }
+  .finale .hero {
+    position: absolute; left: 50%; top: 50%; z-index: 2; text-align: center; pointer-events: none;
+    transform: translate(-50%, -50%);
+    animation: stamp .5s cubic-bezier(.2, 1.6, .4, 1) .15s both; --r: -4deg;
+  }
+  .finale .hero .big {
+    display: block; font: 900 clamp(3rem, 15vw, 8.5rem)/.9 var(--f-display); font-stretch: 125%; letter-spacing: -.04em;
+    color: #FFE14A; -webkit-text-stroke: 3px #0B0B12; paint-order: stroke fill; text-shadow: 7px 7px 0 #A31F34;
+  }
+  .finale .hero .sub {
+    display: inline-block; margin-top: 14px; padding: 6px 14px; border-radius: 999px;
+    background: #0B0B12; color: #FFFFFF; font: 700 clamp(.95rem, 3.4vw, 1.2rem) var(--f-mono);
+  }
+  .finale .tap { position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); left: 0; right: 0; text-align: center; color: rgba(255, 255, 255, .75); font-weight: 600; font-size: .9rem; pointer-events: none; }
+  .finale .tim { position: absolute; left: 0; top: 0; width: clamp(110px, 21vw, 210px); height: auto; max-width: none; z-index: 3; pointer-events: none; will-change: transform; filter: drop-shadow(0 10px 12px rgba(0, 0, 0, .5)); }
   #fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 70; }
 
   /* ---------- Results ---------- */
@@ -476,8 +491,12 @@
           <input type="email" id="emailInput" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" placeholder="kerberos@mit.edu">
         </div>
         <div class="field">
-          <label for="pwInput">Password</label>
+          <label for="pwInput" id="pwLabel">Password</label>
           <input type="password" id="pwInput" autocomplete="current-password" minlength="6">
+        </div>
+        <div class="field" id="codeField" hidden>
+          <label for="codeInput">Class code (filled in from your invite link)</label>
+          <input type="text" id="codeInput" autocapitalize="off" spellcheck="false" autocomplete="off" placeholder="e.g. beaver-4821">
         </div>
         <button class="primary" type="submit" id="authSubmit">Sign in</button>
         <p class="err" id="authErr" aria-live="polite"></p>
@@ -488,8 +507,20 @@
       </div>
     </div>
 
-    <div class="panel" id="gateVerify" hidden>
+    <div class="panel" id="gateJoin" hidden>
       <div class="eyebrow">One more step</div>
+      <h2>Enter the class code</h2>
+      <p class="muted">It's in the invite link your organizer sent, after <span class="num">#join-</span>. For example <span class="num">beaver-4821</span>.</p>
+      <form id="joinForm" autocomplete="off">
+        <input type="text" id="joinInput" placeholder="Class code" autocapitalize="off" spellcheck="false">
+        <button class="primary" type="submit">Join</button>
+        <p class="err" id="joinErr" aria-live="polite"></p>
+      </form>
+      <button type="button" class="ghost-btn linkish" id="joinOut">Use a different email</button>
+    </div>
+
+    <div class="panel" id="gateVerify" hidden>
+      <div class="eyebrow">Organizer check</div>
       <h2>Confirm your email</h2>
       <p class="muted">We sent a confirmation link to <strong id="verifyEmail"></strong>. Open it in Outlook (check Junk or Quarantine if it isn't there), then come back and continue.</p>
       <div class="row">
@@ -504,7 +535,10 @@
       <div class="eyebrow">Not on the class list</div>
       <h2>You're signed in, but not on the list yet</h2>
       <p class="muted"><strong id="notListedEmail"></strong> isn't on this class's list. Ask the organizer to add it, then reload this page.</p>
-      <button type="button" id="notListedOut">Sign out</button>
+      <div class="row">
+        <button type="button" id="notListedOut">Sign out</button>
+        <button type="button" class="ghost-btn linkish" id="orgVerifyBtn">I'm the organizer</button>
+      </div>
     </div>
   </section>
 
@@ -581,8 +615,22 @@
 
       <div class="panel">
         <div class="eyebrow">Only you see this</div>
+        <h2>Invite link</h2>
+        <p class="muted">Send this link to the class, for example in the class email or group chat. It fills in the class code <strong class="num" id="inviteCode">…</strong>, so classmates on your list only type their email, name and a password.</p>
+        <div class="row">
+          <input type="text" id="inviteLink" readonly aria-label="Invite link" style="flex: 1 1 260px; font-family: var(--f-mono); font-size: .85rem">
+          <button class="primary" type="button" id="copyInvite">Copy link</button>
+        </div>
+        <div class="row" style="justify-content: space-between">
+          <span class="muted small" id="inviteStatus" aria-live="polite"></span>
+          <button type="button" class="danger" id="newCodeBtn">Make a new code</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="eyebrow">Only you see this</div>
         <h2>Class list</h2>
-        <p class="muted">Only these school emails can create an account, see the photos and play. Paste them one per line or separated by commas. Pasting from a spreadsheet or an email's To line works too.</p>
+        <p class="muted">Only these school emails can join, see the photos and play. A ✓ means they've joined. Paste them one per line or separated by commas. Pasting from a spreadsheet or an email's To line works too.</p>
         <form id="allowForm" class="stack" style="gap: 10px">
           <label for="allowInput" class="small muted" style="font-weight: 600">Emails to add</label>
           <textarea id="allowInput" rows="4" placeholder="jdoe@mit.edu&#10;srivera@mit.edu"></textarea>
@@ -629,7 +677,6 @@
       </svg>
       <div class="wind"></div>
       <div class="vignette"></div>
-      <div class="flash" id="flash"></div>
     </div>
     <div class="stage">
      <div class="quake" id="quake">
@@ -676,6 +723,12 @@
      </div>
     </div>
   </section>
+  <div class="finale" id="finale" hidden role="dialog" aria-label="Run complete">
+    <div id="finaleWords" aria-hidden="true"></div>
+    <div class="hero"><span class="big">TYPE SHIT</span><span class="sub" id="finaleSub"></span></div>
+    <img class="tim" id="tim" src="tim.webp" alt="" width="360" height="487">
+    <div class="tap">Tap anywhere to see your results</div>
+  </div>
   <canvas id="fx" aria-hidden="true"></canvas>
 
   <!-- ============ RESULT ============ -->

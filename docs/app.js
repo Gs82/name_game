@@ -71,7 +71,7 @@ function b64(buf) {
   function show(section) {
     for (const s of ['gate', 'home', 'game', 'result']) $(s).hidden = s !== section;
     if (isAdmin) $('orgBar').hidden = section !== 'home';
-    if (section !== 'game') { $('game').classList.remove('pulse', 'redline'); $('game').style.setProperty('--alt', 0); $('game').style.setProperty('--shake', 0); }
+    if (section !== 'game') { $('game').classList.remove('pulse', 'redline'); $('game').style.setProperty('--alt', 0); }
     window.scrollTo(0, 0);
   }
   // Better = higher accuracy, then faster, then earlier
@@ -376,8 +376,6 @@ function b64(buf) {
     const game = $('game');
     const m = BASE_M + frac * (TOP_M - BASE_M);
     game.style.setProperty('--alt', frac.toFixed(3));
-    const shake = reduceMotion ? 0 : Math.max(0, (frac - .3) / .7) * 2.4 + (m >= 8000 ? 1 : 0);
-    game.style.setProperty('--shake', shake.toFixed(2));
     game.style.setProperty('--beat', (1.2 - frac * .75).toFixed(2) + 's');
     game.classList.toggle('pulse', frac >= .2);
     const prev = zoneFor(shownM), z = zoneFor(m);
@@ -406,14 +404,6 @@ function b64(buf) {
     if (z[1] === 'Summit') el.classList.add('summit');
   }
 
-  function stumble() {
-    const q = $('quake'), f = $('flash');
-    q.classList.remove('jolt'); f.classList.remove('on');
-    void q.offsetWidth;
-    if (!reduceMotion) q.classList.add('jolt');
-    f.classList.add('on');
-    try { navigator.vibrate && navigator.vibrate([70, 40, 70]); } catch {}
-  }
 
   // Confetti: a small canvas particle system
   const fx = $('fx'), fxCtx = fx.getContext('2d');
@@ -469,6 +459,70 @@ function b64(buf) {
       confetti({ x: innerWidth * (left ? .08 : .92), y: innerHeight * .95, count: big ? 90 : 60, spread: 45, power: 19, angle: left ? -65 : -115 });
     }, i * 300);
   }
+
+  // ================= Finish screen =================
+  // "TYPE SHIT" stamped all over the screen while Tim the Beaver flies around it.
+  let finaleFrame = 0, finaleTimer = 0;
+  function finale(sub) {
+    const el = $('finale'), words = $('finaleWords');
+    $('finaleSub').textContent = sub;
+    words.innerHTML = '';
+    const W = innerWidth, H = innerHeight;
+    const colors = ['#FFE14A', '#FFFFFF', '#A31F34', '#8EA3FF', '#5BD08A', '#FF8A3D'];
+    const cols = W < 600 ? 3 : 5, rows = Math.max(5, Math.round(H / 110));
+    let i = 0;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      const w = document.createElement('span');
+      w.className = 'word';
+      w.textContent = 'TYPE SHIT';
+      w.style.left = ((c + .5) / cols * 100 + (Math.random() - .5) * (60 / cols)) + '%';
+      w.style.top = ((r + .5) / rows * 100 + (Math.random() - .5) * (50 / rows)) + '%';
+      w.style.fontSize = (W < 600 ? 14 + Math.random() * 16 : 18 + Math.random() * 30) + 'px';
+      w.style.color = colors[i % colors.length];
+      w.style.setProperty('--r', (Math.random() * 50 - 25).toFixed(1) + 'deg');
+      w.style.setProperty('--d', (80 + Math.random() * 900).toFixed(0) + 'ms');
+      words.append(w);
+      i++;
+    }
+    el.classList.remove('out');
+    el.hidden = false;
+
+    // Tim bounces around the screen like an arcade sprite
+    const tim = $('tim');
+    const size = tim.getBoundingClientRect();
+    const tw = size.width || 130, th = size.height || tw * 487 / 360;
+    let x = -tw, y = H * .25, vx = W / 90 + 4, vy = 2.2, t = 0, frame = 0;
+    cancelAnimationFrame(finaleFrame);
+    const fly = () => {
+      t += 1; frame++;
+      x += vx; y += vy + Math.sin(t / 9) * 2.4;
+      if (x > W - tw && vx > 0 && t > 20) vx = -vx;
+      if (x < 0 && vx < 0) vx = -vx;
+      if (y < 0) { y = 0; vy = Math.abs(vy); }
+      if (y > H - th) { y = H - th; vy = -Math.abs(vy); }
+      if (frame % 90 === 0) vy = (Math.random() - .5) * 7;   // change altitude now and then
+      const flip = vx < 0 ? -1 : 1;
+      // The photo faces the viewer, so lean into the flight instead of mirroring (mirroring would flip the MIT shirt)
+      const tilt = flip * 16 + Math.sin(t / 7) * 6 + vy * 1.5;
+      tim.style.transform = `translate(${x}px, ${y}px) rotate(${tilt}deg)`;
+      if (frame % 4 === 0) confetti({ x: x + tw / 2 - flip * tw * .35, y: y + th * .75, count: 3, spread: 120, power: 3, angle: flip > 0 ? 180 : 0 });
+      finaleFrame = requestAnimationFrame(fly);
+    };
+    if (reduceMotion) tim.style.transform = `translate(${W - tw - 16}px, ${H - th - 60}px)`;
+    else finaleFrame = requestAnimationFrame(fly);
+
+    clearTimeout(finaleTimer);
+    finaleTimer = setTimeout(closeFinale, 6500);
+  }
+  function closeFinale() {
+    const el = $('finale');
+    if (el.hidden || el.classList.contains('out')) return;
+    clearTimeout(finaleTimer);
+    el.classList.add('out');
+    setTimeout(() => { el.hidden = true; el.classList.remove('out'); cancelAnimationFrame(finaleFrame); }, 450);
+  }
+  $('finale').onclick = closeFinale;
+  document.addEventListener('keydown', e => { if (!$('finale').hidden && (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); closeFinale(); } });
 
   // ================= Game engine =================
   let G = null;
@@ -627,7 +681,7 @@ function b64(buf) {
     if (!correct) btn.classList.add('wrong');
     record(correct);
     if (correct) { feedback(true, 'Correct'); burstFrom(btn, 26 + Math.round(G.correct / G.total * 60)); }
-    else { feedback(false, 'Not quite'); showTag(G.current.name); stumble(); }
+    else { feedback(false, 'Not quite'); showTag(G.current.name); }
     if (G.ranked) G.advance = setTimeout(nextQuestion, correct ? 450 : 1300);
     else { setButtons('answered'); $('nextBtn').focus(); }
   }
@@ -643,7 +697,7 @@ function b64(buf) {
     $('guess').disabled = true;
     if (res === 'exact') feedback(true, 'Correct');
     else if (res === 'close') feedback(true, `Close enough. It's spelled ${G.current.name}.`);
-    else { feedback(false, 'Not quite'); showTag(G.current.name); stumble(); }
+    else { feedback(false, 'Not quite'); showTag(G.current.name); }
     if (res) burstFrom($('guess'), 26 + Math.round(G.correct / G.total * 60));
     setButtons('answered');
     $('nextBtn').focus();
@@ -660,7 +714,7 @@ function b64(buf) {
   };
   $('revealBtn').onclick = () => { showTag(G.current.name); setButtons('flash-shown'); };
   $('gotItBtn').onclick = () => { record(true); burstFrom($('gotItBtn'), 30); nextQuestion(); };
-  $('missedItBtn').onclick = () => { record(false); stumble(); nextQuestion(); };
+  $('missedItBtn').onclick = () => { record(false); nextQuestion(); };
   $('nextBtn').onclick = () => nextQuestion();
   $('quitBtn').onclick = () => {
     if (!G) return;
@@ -701,6 +755,7 @@ function b64(buf) {
     const rz = zoneFor(reachedM);
     $('resAlt').textContent = rz[1] === 'Summit' ? 'You reached the summit: 8,849 m.'
       : `You reached ${rz[1] === 'Death zone' ? 'the death zone' : rz[1]} at ${fmtM(reachedM)}.`;
+    finale(g.ranked ? `${g.correct}/${g.total} · ${fmtTime(g.ms)}` : `${g.correct}/${seenCount || 0} first try`);
     if (g.correct === g.total && g.total > 0) celebrate(true);
     else if (g.correct / Math.max(1, g.total) >= .6) celebrate(false);
     $('resVerdict').textContent = '';
@@ -781,7 +836,10 @@ function b64(buf) {
   setInterval(renderWindow, 30000);
 
   // ================= Sign-in =================
-  const GATES = ['gateLoading', 'gateSetup', 'gateSignIn', 'gateVerify', 'gateNotListed'];
+  // Players join with their school email, a password and the class code from the
+  // organizer's invite link. No confirmation email: the class list plus the code,
+  // both checked by firestore.rules, decide who gets in.
+  const GATES = ['gateLoading', 'gateSetup', 'gateSignIn', 'gateJoin', 'gateVerify', 'gateNotListed'];
   function gate(which) {
     show('gate');
     for (const id of GATES) $(id).hidden = id !== which;
@@ -789,16 +847,28 @@ function b64(buf) {
   const lowerEmail = e => String(e || '').trim().toLowerCase();
   const DOMAIN = String(EMAIL_DOMAIN || '').toLowerCase().replace(/^@/, '');
   const inDomain = e => !DOMAIN || e.endsWith('@' + DOMAIN);
+  const normCode = c => String(c || '').trim().toLowerCase().replace(/\s+/g, '');
 
-  let authMode = 'signin';
+  // The invite link carries the code as #join-CODE; remember it for this visit
+  const CODE_KEY = 'rollcall-join-code';
+  function codeFromLink() {
+    const m = location.hash.match(/^#join-([A-Za-z0-9_-]{3,40})$/);
+    if (m) { try { sessionStorage.setItem(CODE_KEY, normCode(m[1])); } catch {} return normCode(m[1]); }
+    try { return sessionStorage.getItem(CODE_KEY) || ''; } catch { return ''; }
+  }
+  const linkCode = codeFromLink();
+
+  let authMode = /^#join-/.test(location.hash) ? 'signup' : 'signin';
   function setAuthMode(m) {
     authMode = m;
     const up = m === 'signup';
     $('nameField').hidden = !up;
-    $('authTitle').textContent = up ? 'Create your account' : 'Sign in with your school email';
-    $('authSubmit').textContent = up ? 'Create account' : 'Sign in';
-    $('authToggle').textContent = up ? 'I already have an account' : 'First time here? Create an account';
+    $('codeField').hidden = !up;
+    $('authTitle').textContent = up ? 'Join the class' : 'Sign in with your school email';
+    $('authSubmit').textContent = up ? 'Join' : 'Sign in';
+    $('authToggle').textContent = up ? 'I already have an account' : 'First time here? Join the class';
     $('pwInput').autocomplete = up ? 'new-password' : 'current-password';
+    $('pwLabel').textContent = up ? 'Choose a password (6+ characters)' : 'Password';
     $('forgotBtn').hidden = up;
     $('authErr').textContent = '';
   }
@@ -806,8 +876,8 @@ function b64(buf) {
   function authMessage(e) {
     switch (e.code) {
       case 'auth/invalid-credential': case 'auth/wrong-password': case 'auth/user-not-found':
-        return 'That email and password don\'t match. First time here? Create an account.';
-      case 'auth/email-already-in-use': return 'There\'s already an account for this email. Sign in, or reset your password.';
+        return 'That email and password don\'t match. First time here? Join the class.';
+      case 'auth/email-already-in-use': return 'There\'s already an account for this email. Sign in instead, or reset your password. If you never made one, tell the organizer.';
       case 'auth/weak-password': return 'Use a password with at least 6 characters.';
       case 'auth/invalid-email': return 'That doesn\'t look like an email address.';
       case 'auth/too-many-requests': return 'Too many tries. Wait a few minutes and try again.';
@@ -819,6 +889,21 @@ function b64(buf) {
   // After clicking the email link, Firebase shows a Continue button that returns here
   const linkSettings = () => ({ url: location.origin + location.pathname });
 
+  // Join the class: write members/<uid>; the rules accept it only with the right code
+  // for an email on the class list. Returns 'ok', 'not-listed' or 'bad-code'.
+  async function claimMembership(code) {
+    try {
+      await setDoc(doc(db, 'members', me.uid), { email: lowerEmail(me.email), code: normCode(code), joinedAt: Date.now() });
+      try { sessionStorage.setItem(CODE_KEY, normCode(code)); } catch {}
+      return 'ok';
+    } catch {
+      let listed = false;
+      try { listed = (await getDoc(doc(db, 'allowed', lowerEmail(me.email)))).exists(); } catch {}
+      return listed ? 'bad-code' : 'not-listed';
+    }
+  }
+  let pendingCode = '';
+
   const configured = FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey && !/PASTE/.test(FIREBASE_CONFIG.apiKey);
   if (!configured) {
     gate('gateSetup');
@@ -827,22 +912,24 @@ function b64(buf) {
     auth = getAuth(app);
     db = getFirestore(app);
     gate('gateLoading');
-    setAuthMode('signin');
+    setAuthMode(authMode);
+    if (linkCode) $('codeInput').value = linkCode;
 
     $('authToggle').onclick = () => setAuthMode(authMode === 'signin' ? 'signup' : 'signin');
     $('authForm').onsubmit = async e => {
       e.preventDefault();
       const email = lowerEmail($('emailInput').value), pw = $('pwInput').value, name = $('nameInput').value.trim();
+      const code = normCode($('codeInput').value);
       if (!email || !pw) { $('authErr').textContent = 'Enter your school email and a password.'; return; }
       if (!inDomain(email)) { $('authErr').textContent = `Use your @${DOMAIN} email address.`; return; }
       if (authMode === 'signup' && !name) { $('authErr').textContent = 'Add your name. It\'s what the leaderboard shows.'; return; }
-      $('authErr').textContent = authMode === 'signup' ? 'Creating your account…' : 'Signing in…';
+      $('authErr').textContent = authMode === 'signup' ? 'Joining…' : 'Signing in…';
       try {
         if (authMode === 'signup') {
+          pendingCode = code;
           const cred = await createUserWithEmailAndPassword(auth, email, pw);
           await updateProfile(cred.user, { displayName: name.slice(0, 60) });
-          await sendEmailVerification(cred.user, linkSettings()).catch(() => sendEmailVerification(cred.user));
-          startSession(true);
+          startSession();
         } else {
           await signInWithEmailAndPassword(auth, email, pw);
         }
@@ -858,16 +945,34 @@ function b64(buf) {
       } catch (err) { $('authErr').textContent = authMessage(err); }
     };
 
+    // Signed in but not a member yet (e.g. the account predates the class code)
+    $('joinForm').onsubmit = async e => {
+      e.preventDefault();
+      const code = normCode($('joinInput').value);
+      if (!code) return;
+      $('joinErr').textContent = 'Checking…';
+      const r = await claimMembership(code);
+      if (r === 'ok') { $('joinErr').textContent = ''; enterGame(); }
+      else if (r === 'bad-code') $('joinErr').textContent = 'That code didn\'t work. Check the invite link from your organizer.';
+      else { $('notListedEmail').textContent = me.email; gate('gateNotListed'); }
+    };
+
+    // The organizer's account still needs a confirmed email (see firestore.rules)
+    $('orgVerifyBtn').onclick = async () => {
+      try { await sendEmailVerification(auth.currentUser, linkSettings()).catch(() => sendEmailVerification(auth.currentUser)); } catch {}
+      $('verifyEmail').textContent = me.email;
+      $('verifyMsg').textContent = '';
+      gate('gateVerify');
+    };
     $('verifyContinue').onclick = async () => {
       const u = auth.currentUser;
       if (!u) return gate('gateSignIn');
       $('verifyMsg').textContent = 'Checking…';
       await u.reload();
       if (!auth.currentUser.emailVerified) { $('verifyMsg').textContent = 'Not confirmed yet. Open the link in the email first, then come back.'; return; }
-      await auth.currentUser.getIdToken(true);   // the new token carries email_verified for the security rules
       $('verifyMsg').textContent = '';
       me = auth.currentUser;
-      startSession(true);
+      startSession();
     };
     $('verifyResend').onclick = async () => {
       try {
@@ -875,7 +980,8 @@ function b64(buf) {
         $('verifyMsg').textContent = 'Sent again. It can take a minute, and it may land in Junk.';
       } catch (err) { $('verifyMsg').textContent = authMessage(err); }
     };
-    for (const id of ['signOutBtn', 'verifyOut', 'notListedOut']) $(id).onclick = async () => { await signOut(auth); location.reload(); };
+    // Sign out back to the plain address, so the page opens on "Sign in" rather than the invite's "Join"
+    for (const id of ['signOutBtn', 'verifyOut', 'notListedOut', 'joinOut']) $(id).onclick = async () => { await signOut(auth); location.replace(location.pathname); };
 
     onAuthStateChanged(auth, u => {
       if (!u) { $('account').hidden = true; gate('gateSignIn'); return; }
@@ -885,36 +991,49 @@ function b64(buf) {
     });
   }
 
-  async function startSession(force) {
-    if (!force && entered) return;
+  // Sign-up and the auth listener can both start a session at once; run it only once at a time
+  let sessionRun = null;
+  function startSession() {
+    if (entered) return;
+    if (!sessionRun) sessionRun = runSession().finally(() => { sessionRun = null; });
+    return sessionRun;
+  }
+  async function runSession() {
     myId = me.uid;
     $('account').hidden = false;
     $('accountName').textContent = me.displayName || me.email;
     $('accountImg').src = initialsAvatar(me.displayName || me.email || '?');
-
-    if (!me.emailVerified) {
-      $('verifyEmail').textContent = me.email;
-      gate('gateVerify');
-      return;
-    }
     gate('gateLoading');
+    // Fresh token, so a just-confirmed organizer email counts right away
+    try { await me.getIdToken(true); } catch {}
     // Only organizers may read admin/*, so a successful read means this is the organizer.
     // This keeps organizer emails out of the public site code.
     try { await getDoc(doc(db, 'admin', 'probe')); isAdmin = true; } catch { isAdmin = false; }
-    if (!isAdmin) {
+    if (isAdmin) return enterGame();
+
+    let member = false;
+    try { member = (await getDoc(doc(db, 'members', me.uid))).exists(); } catch {}
+    if (member) {
       let listed = false;
       try { listed = (await getDoc(doc(db, 'allowed', lowerEmail(me.email)))).exists(); } catch {}
-      if (!listed) {
-        $('notListedEmail').textContent = me.email;
-        gate('gateNotListed');
-        return;
-      }
+      if (listed) return enterGame();
+      $('notListedEmail').textContent = me.email;
+      return gate('gateNotListed');
     }
-    enterGame();
+    const code = pendingCode || linkCode;
+    pendingCode = '';
+    if (code) {
+      const r = await claimMembership(code);
+      if (r === 'ok') return enterGame();
+      if (r === 'not-listed') { $('notListedEmail').textContent = me.email; return gate('gateNotListed'); }
+      $('joinErr').textContent = 'That class code didn\'t work. Check the invite link from your organizer.';
+    }
+    $('joinInput').value = code || '';
+    gate('gateJoin');
   }
 
   // ---------- After signing in ----------
-  let entered = false, rosterComplete = false, allowed = [];
+  let entered = false, rosterComplete = false, allowed = [], joined = new Set(), classCode = '';
 
   async function enterGame() {
     if (entered) return;
@@ -932,6 +1051,12 @@ function b64(buf) {
         await setDoc(doc(db, 'meta', 'challenge'), { startsAt: now, endsAt: now + 7 * 864e5, prize: '', size: 0 }).catch(e => console.warn(e));
       }
       onSnapshot(collection(db, 'allowed'), snap => { allowed = snap.docs.map(d => d.id).sort(); renderAllowed(); }, err => console.warn('allowed', err));
+      onSnapshot(collection(db, 'members'), snap => { joined = new Set(snap.docs.map(d => d.data().email)); renderAllowed(); }, err => console.warn('members', err));
+      onSnapshot(doc(db, 'secret', 'code'), async snap => {
+        if (!snap.exists()) { await newClassCode(); return; }
+        classCode = snap.data().code || '';
+        renderInvite();
+      }, err => console.warn('code', err));
     }
     onSnapshot(collection(db, 'roster'), snap => {
       roster = snap.docs.map(d => ({ id: d.id, ...d.data() }))
@@ -961,13 +1086,44 @@ function b64(buf) {
     sizeWriting = false;
   }
 
+  // ---------- Organizer: class code and invite link ----------
+  const CODE_WORDS = ['beaver', 'dome', 'charles', 'kendall', 'sloan', 'infinite', 'baltic', 'tim', 'brass', 'killian'];
+  async function newClassCode() {
+    const n = crypto.getRandomValues(new Uint32Array(2));
+    const code = CODE_WORDS[n[0] % CODE_WORDS.length] + '-' + String(1000 + n[1] % 9000);
+    try { await setDoc(doc(db, 'secret', 'code'), { code, createdAt: Date.now() }); }
+    catch (e) { $('inviteStatus').textContent = 'Couldn\'t make a code: ' + (e.message || e.code); }
+  }
+  const inviteLink = () => location.origin + location.pathname + '#join-' + classCode;
+  function renderInvite() {
+    $('inviteLink').value = classCode ? inviteLink() : '';
+    $('inviteCode').textContent = classCode || '…';
+  }
+  $('copyInvite').onclick = async () => {
+    const text = inviteLink();
+    try { await navigator.clipboard.writeText(text); $('inviteStatus').textContent = 'Link copied. Paste it into your message to the class.'; }
+    catch { $('inviteLink').select(); $('inviteStatus').textContent = 'Press Cmd+C (or Ctrl+C) to copy.'; }
+  };
+  $('newCodeBtn').onclick = async () => {
+    const b = $('newCodeBtn');
+    if (!b.classList.contains('armed')) {
+      b.classList.add('armed'); b.textContent = 'Confirm new code';
+      setTimeout(() => { b.classList.remove('armed'); b.textContent = 'Make a new code'; }, 4000);
+      return;
+    }
+    b.classList.remove('armed'); b.textContent = 'Make a new code';
+    await newClassCode();
+    $('inviteStatus').textContent = 'New code made. The old link stops working for new sign-ups; people who already joined keep playing.';
+  };
+
   // ---------- Organizer: class list ----------
   function renderAllowed() {
     const ul = $('allowList');
     ul.innerHTML = '';
     for (const email of allowed) {
       const li = document.createElement('li');
-      const span = document.createElement('span'); span.textContent = email;
+      const span = document.createElement('span'); span.textContent = (joined.has(email) ? '✓ ' : '') + email;
+      if (joined.has(email)) li.classList.add('joined');
       const del = document.createElement('button');
       del.type = 'button'; del.className = 'danger'; del.textContent = 'Remove';
       del.setAttribute('aria-label', 'Remove ' + email);
@@ -979,7 +1135,8 @@ function b64(buf) {
       li.append(span, del);
       ul.append(li);
     }
-    $('allowCount').textContent = allowed.length ? `${allowed.length} email${allowed.length === 1 ? '' : 's'} on the list` : 'Nobody on the list yet';
+    const nJoined = allowed.filter(e => joined.has(e)).length;
+    $('allowCount').textContent = allowed.length ? `${allowed.length} email${allowed.length === 1 ? '' : 's'} on the list · ${nJoined} joined (✓)` : 'Nobody on the list yet';
   }
   $('allowForm').onsubmit = async e => {
     e.preventDefault();
@@ -998,6 +1155,6 @@ function b64(buf) {
         await batch.commit();
       }
       $('allowInput').value = '';
-      $('allowStatus').textContent = `Added ${fresh.length}. They can now create an account with that email.` + skipNote;
+      $('allowStatus').textContent = `Added ${fresh.length}. They can now join with the invite link.` + skipNote;
     } catch (err) { $('allowStatus').textContent = 'Couldn\'t add: ' + (err.message || err.code); }
   };
