@@ -255,7 +255,7 @@
   /* ---------- Game ---------- */
   /* The run is a climb: a full-screen layer whose sky thins out as --alt goes 0 → 1 */
   .climb {
-    --alt: 0; --beat: 1.2s;
+    --alt: 0;
     position: fixed; inset: 0; z-index: 50;
     overflow-y: auto; overflow-x: hidden;
     background: var(--bg);
@@ -289,9 +289,7 @@
     position: absolute; inset: -20% -50%;
     background: repeating-linear-gradient(100deg, transparent 0 46px, rgba(255, 255, 255, .07) 46px 48px, transparent 48px 130px);
     opacity: clamp(0, calc((var(--alt) - .35) * 1.6), .9);
-    animation: gust calc(2.4s - var(--alt) * 1.6s) linear infinite;
   }
-  @keyframes gust { to { transform: translateX(-130px); } }
   .sky .ridge {
     position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 46vh;
     transform: translateY(calc(var(--alt) * 38vh));
@@ -331,9 +329,7 @@
   .gamebar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
   .clockbox { text-align: center; }
   .clock { font: 600 1.6rem/1 var(--f-mono); font-variant-numeric: tabular-nums; letter-spacing: -.02em; display: inline-block; }
-  .climb.pulse .clock { animation: beat var(--beat) ease-in-out infinite; }
   .climb.redline .clock { color: var(--bad); }
-  @keyframes beat { 0%, 100% { transform: scale(1); } 12% { transform: scale(1.08); } 24% { transform: scale(1); } 36% { transform: scale(1.04); } }
   .ghost { font: 500 .75rem var(--f-mono); color: var(--muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
   .ghost.beaten { color: var(--bad); }
   .alti { text-align: right; }
@@ -381,7 +377,7 @@
   .nametag .nm { font: 700 clamp(1.4rem, 5vw, 2rem)/1.15 var(--f-hand); color: var(--tag-text); padding: 10px 10px 12px; overflow-wrap: anywhere; }
   @keyframes stick { from { transform: translateX(-50%) rotate(-10deg) scale(.8); opacity: 0; } }
   @media (prefers-reduced-motion: reduce) {
-    .nametag, .climb.pulse .clock, .sky .wind, .finale .word, .finale .hero { animation: none; }
+    .nametag, .finale .word, .finale .hero { animation: none; }
     .progress > div, .sky .ridge, .sky .air { transition: none; }
   }
   /* Phones and tablets */
@@ -754,6 +750,6 @@
   </section>
 </div>
 
-<script type="module" src="app.js"></script>
+<script type="module" src="app.js?v=4"></script>
 </body>
 </html>

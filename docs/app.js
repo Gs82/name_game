@@ -9,7 +9,7 @@ import {
 import {
   getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, writeBatch,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { FIREBASE_CONFIG, EMAIL_DOMAIN } from './config.js';
+import { FIREBASE_CONFIG, EMAIL_DOMAIN } from './config.js?v=4';
 
 function b64(buf) {
   const u = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
@@ -71,7 +71,7 @@ function b64(buf) {
   function show(section) {
     for (const s of ['gate', 'home', 'game', 'result']) $(s).hidden = s !== section;
     if (isAdmin) $('orgBar').hidden = section !== 'home';
-    if (section !== 'game') { $('game').classList.remove('pulse', 'redline'); $('game').style.setProperty('--alt', 0); }
+    if (section !== 'game') { $('game').classList.remove('redline'); $('game').style.setProperty('--alt', 0); }
     window.scrollTo(0, 0);
   }
   // Better = higher accuracy, then faster, then earlier
@@ -376,8 +376,6 @@ function b64(buf) {
     const game = $('game');
     const m = BASE_M + frac * (TOP_M - BASE_M);
     game.style.setProperty('--alt', frac.toFixed(3));
-    game.style.setProperty('--beat', (1.2 - frac * .75).toFixed(2) + 's');
-    game.classList.toggle('pulse', frac >= .2);
     const prev = zoneFor(shownM), z = zoneFor(m);
     const from = shownM, t0 = performance.now();
     cancelAnimationFrame(altAnim);
