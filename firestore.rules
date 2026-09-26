@@ -1,0 +1,89 @@
+rules_version = '2';
+
+// Security rules for Roll Call. Paste into Firebase console → Firestore Database → Rules, then Publish.
+// Replace organizer@mit.edu with the organizer's @mit.edu email. Edit it only in the
+// Firebase console: this repository is public, so don't commit your real email.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    // The player clicked the confirmation link, so they really own the address.
+    // Only this domain is accepted (keep in sync with EMAIL_DOMAIN in docs/config.js).
+    function verified() {
+      return signedIn() && request.auth.token.email_verified == true
+        && myEmail().matches('.*@mit[.]edu$');
+    }
+
+    function isOrganizer() {
+      return verified() && myEmail() in ['organizer@mit.edu'];
+    }
+
+    // On the organizer's class list (the organizer always counts)
+    function onList() {
+      return verified()
+        && (isOrganizer() || exists(/databases/$(database)/documents/allowed/$(myEmail())));
+    }
+
+    function challenge() {
+      return get(/databases/$(database)/documents/meta/challenge).data;
+    }
+
+    // A player's best run. Totals must match the class size, times can't be
+    // impossibly fast, and runs only count during the challenge window.
+    function validScore() {
+      let d = request.resource.data;
+      let c = challenge();
+      let keptBest = resource != null
+        && d.correct == resource.data.correct
+        && d.total == resource.data.total
+        && d.ms == resource.data.ms
+        && d.achievedAt == resource.data.achievedAt;
+      return d.keys().hasOnly(['correct', 'total', 'ms', 'achievedAt', 'attempts', 'lastPlayedAt', 'name', 'photo'])
+        && d.correct is int && d.total is int && d.ms is int
+        && d.achievedAt is int && d.lastPlayedAt is int && d.attempts is int
+        && d.correct >= 0 && d.correct <= d.total && d.total > 0
+        && (keptBest || (d.total == c.size && d.ms >= d.total * 250))
+        && d.attempts >= 1 && d.attempts <= 100000
+        && d.name is string && d.name.size() >= 1 && d.name.size() <= 60
+        && d.photo == ''
+        && request.time.toMillis() >= c.startsAt
+        && request.time.toMillis() <= c.endsAt + 60000;
+    }
+
+    // Readable only by organizers: the site reads admin/probe to decide whether to show organizer tools
+    match /admin/{docId} {
+      allow read: if isOrganizer();
+    }
+
+    // The class list: one document per allowed email (lowercase), e.g. allowed/jane.doe@school.edu
+    match /allowed/{email} {
+      allow read: if isOrganizer() || (verified() && myEmail() == email);
+      allow write: if isOrganizer();
+    }
+
+    // Challenge settings
+    match /meta/{docId} {
+      allow read: if onList();
+      allow write: if isOrganizer();
+    }
+
+    // Class photos and names
+    match /roster/{personId} {
+      allow read: if onList();
+      allow write: if isOrganizer();
+    }
+
+    match /scores/{uid} {
+      allow read: if onList();
+      allow create, update: if onList() && request.auth.uid == uid && validScore();
+      allow delete: if isOrganizer();
+    }
+  }
+}
