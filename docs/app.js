@@ -898,6 +898,9 @@ function b64(buf) {
       return;
     }
     gate('gateLoading');
+    // A token issued before the player clicked the confirmation link still says
+    // email_verified: false, and the security rules would refuse it. Get a fresh one.
+    try { await me.getIdToken(true); } catch {}
     // Only organizers may read admin/*, so a successful read means this is the organizer.
     // This keeps organizer emails out of the public site code.
     try { await getDoc(doc(db, 'admin', 'probe')); isAdmin = true; } catch { isAdmin = false; }
