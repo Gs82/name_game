@@ -19,7 +19,7 @@ The website lives in `docs/` and runs on GitHub Pages. Players sign in with thei
 1. Open **Build → Firestore Database** → **Create database**.
 2. Pick a location near you and start in **production mode**.
 3. Open the **Rules** tab, delete what's there, and paste the contents of [`firestore.rules`](firestore.rules).
-4. Replace `organizer@school.edu` with **your school email**, then click **Publish**. Only edit it here in the console. The repository is public, so don't commit your real email.
+4. Replace `organizer@mit.edu` with **your @mit.edu email** (the one you'll sign up with), then click **Publish**. Only edit it here in the console. The repository is public, so don't commit your real email.
 
 ## 4. Connect the website
 

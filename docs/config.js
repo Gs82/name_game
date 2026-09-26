@@ -8,5 +8,8 @@ export const FIREBASE_CONFIG = {
   appId: 'PASTE_APP_ID',
 };
 
+// Only addresses at this domain can sign up or be added to the class list.
+export const EMAIL_DOMAIN = 'mit.edu';
+
 // Organizer emails are NOT listed here (this file is public). They live only in
 // the Firestore security rules, which you paste into the Firebase console.

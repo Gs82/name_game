@@ -9,7 +9,7 @@ import {
 import {
   getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, writeBatch,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { FIREBASE_CONFIG } from './config.js';
+import { FIREBASE_CONFIG, EMAIL_DOMAIN } from './config.js';
 
 function b64(buf) {
   const u = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
@@ -787,6 +787,8 @@ function b64(buf) {
     for (const id of GATES) $(id).hidden = id !== which;
   }
   const lowerEmail = e => String(e || '').trim().toLowerCase();
+  const DOMAIN = String(EMAIL_DOMAIN || '').toLowerCase().replace(/^@/, '');
+  const inDomain = e => !DOMAIN || e.endsWith('@' + DOMAIN);
 
   let authMode = 'signin';
   function setAuthMode(m) {
@@ -832,6 +834,7 @@ function b64(buf) {
       e.preventDefault();
       const email = lowerEmail($('emailInput').value), pw = $('pwInput').value, name = $('nameInput').value.trim();
       if (!email || !pw) { $('authErr').textContent = 'Enter your school email and a password.'; return; }
+      if (!inDomain(email)) { $('authErr').textContent = `Use your @${DOMAIN} email address.`; return; }
       if (authMode === 'signup' && !name) { $('authErr').textContent = 'Add your name. It\'s what the leaderboard shows.'; return; }
       $('authErr').textContent = authMode === 'signup' ? 'Creating your account…' : 'Signing in…';
       try {
@@ -982,9 +985,11 @@ function b64(buf) {
     e.preventDefault();
     if (!isAdmin) return;
     const found = ($('allowInput').value.match(/[^\s,;<>"'()]+@[^\s,;<>"'()]+\.[^\s,;<>"'()]+/g) || []).map(lowerEmail);
-    const fresh = [...new Set(found)].filter(x => !allowed.includes(x));
+    const outside = [...new Set(found.filter(x => !inDomain(x)))];
+    const fresh = [...new Set(found)].filter(x => inDomain(x) && !allowed.includes(x));
+    const skipNote = outside.length ? ` Skipped ${outside.length} that aren't @${DOMAIN}: ${outside.slice(0, 3).join(', ')}${outside.length > 3 ? '…' : ''}` : '';
     if (!found.length) { $('allowStatus').textContent = 'No email addresses found. Paste one per line.'; return; }
-    if (!fresh.length) { $('allowStatus').textContent = 'Those are already on the list.'; return; }
+    if (!fresh.length) { $('allowStatus').textContent = (outside.length ? 'Nothing added.' : 'Those are already on the list.') + skipNote; return; }
     $('allowStatus').textContent = 'Adding…';
     try {
       for (let i = 0; i < fresh.length; i += 400) {
@@ -993,6 +998,6 @@ function b64(buf) {
         await batch.commit();
       }
       $('allowInput').value = '';
-      $('allowStatus').textContent = `Added ${fresh.length}. They can now create an account with that email.`;
+      $('allowStatus').textContent = `Added ${fresh.length}. They can now create an account with that email.` + skipNote;
     } catch (err) { $('allowStatus').textContent = 'Couldn\'t add: ' + (err.message || err.code); }
   };
