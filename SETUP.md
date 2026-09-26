@@ -1,6 +1,6 @@
 # Putting Roll Call online
 
-The website lives in `docs/` and runs on GitHub Pages. Players sign in with their **school email and a password**. Only emails on your class list can see the photos or play. Scores, settings and photos are stored in a free Firebase project. Setup takes about 15 minutes, costs nothing, and needs no credit card.
+The website lives in `docs/` and runs on GitHub Pages. Players join from your **invite link** with their school email, their name and a password, with no confirmation email. Only emails on your class list who have the class code can see the photos or play. Scores, settings and photos are stored in a free Firebase project. Setup takes about 15 minutes, costs nothing, and needs no credit card.
 
 ## 1. Create the Firebase project
 
@@ -37,16 +37,17 @@ These values aren't secret. The rules from step 3 decide who can do what.
 
 ## 6. Run the challenge
 
-1. Open the site and click **Create an account** with your school email. Confirm it from the email Firebase sends, and check **Junk**. You'll then see the organizer tools.
+1. Open the site, click **Join the class**, and sign up with the email you put in the rules. Leave the class code empty. You'll see "not on the list". Click **I'm the organizer**, confirm the email Firebase sends (check **Junk**), and you'll get the organizer tools. You only do this once.
 2. Under **Class list**, paste your classmates' school emails.
 3. Click **Add class photos** and choose your photos folder. Filenames become names, for example `Jane_Doe.jpg` becomes "Jane Doe".
 4. Set the prize and dates in **Challenge settings**. The week starts the first time you sign in as organizer.
 5. Try a ranked run, then **Clear leaderboard**.
-6. Send classmates the link. Tell them to create an account with their school email, and to check Junk for the confirmation email.
+6. Under **Invite link**, click **Copy link** and send it to the class. The link fills in the class code, so classmates only type their email, name and a password. If the link leaks, **Make a new code**. People who already joined keep playing.
 
 ## How the pieces protect the class
 
-- **Class list:** only emails on your list can see the photos, the leaderboard or the settings. Players must confirm they own the address by clicking the link in their inbox.
+- **Class list and class code:** only emails on your list can join, and only with the class code from your invite link. The rules check both on the server. Removing someone from the list locks them out even after they've joined.
+- **No confirmation email for players**, so someone who knows the code could sign up with a listed classmate's email before that person does. The real person would then see "account already exists". Delete the impostor in Firebase under **Authentication**, then **Users**, and in the database under `members`. Passwords stop anyone from taking over an account once it's claimed.
 - **Organizer tools:** only your email can upload photos, change the list or settings, or clear the leaderboard. Your email lives only in the Firestore rules, never in the public site code.
 - **Scores:** each player can only write their own score. The rules reject scores outside the challenge window, totals that don't match the class size, and times faster than 0.25 seconds per photo.
 - **Search engines** are asked not to index the site.
@@ -56,7 +57,7 @@ The scoring still runs in each player's browser, so a determined, technical play
 
 ## Free-tier limits
 
-- **Confirmation emails:** Firebase's free plan sends up to 1,000 a day.
+- **Emails:** only the organizer's one-time confirmation and password resets. Firebase's free plan sends up to 1,000 confirmations a day.
 - **Database reads:** 50,000 a day. Each page load reads about one document per classmate, so a class of 40 can load the site about 1,000 times a day.
 
 Both are far more than a class needs.

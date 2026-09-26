@@ -230,6 +230,7 @@
     font: .82rem var(--f-mono); background: var(--sunk);
   }
   .allowlist li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .allowlist li.joined { border-color: var(--good); background: var(--good-soft); color: var(--good); }
   .allowlist li button { padding: 3px 8px; font-size: .75rem; border-radius: 999px; }
 
   /* ---------- Admin ---------- */
@@ -490,8 +491,12 @@
           <input type="email" id="emailInput" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" placeholder="kerberos@mit.edu">
         </div>
         <div class="field">
-          <label for="pwInput">Password</label>
+          <label for="pwInput" id="pwLabel">Password</label>
           <input type="password" id="pwInput" autocomplete="current-password" minlength="6">
+        </div>
+        <div class="field" id="codeField" hidden>
+          <label for="codeInput">Class code (filled in from your invite link)</label>
+          <input type="text" id="codeInput" autocapitalize="off" spellcheck="false" autocomplete="off" placeholder="e.g. beaver-4821">
         </div>
         <button class="primary" type="submit" id="authSubmit">Sign in</button>
         <p class="err" id="authErr" aria-live="polite"></p>
@@ -502,8 +507,20 @@
       </div>
     </div>
 
-    <div class="panel" id="gateVerify" hidden>
+    <div class="panel" id="gateJoin" hidden>
       <div class="eyebrow">One more step</div>
+      <h2>Enter the class code</h2>
+      <p class="muted">It's in the invite link your organizer sent, after <span class="num">#join-</span>. For example <span class="num">beaver-4821</span>.</p>
+      <form id="joinForm" autocomplete="off">
+        <input type="text" id="joinInput" placeholder="Class code" autocapitalize="off" spellcheck="false">
+        <button class="primary" type="submit">Join</button>
+        <p class="err" id="joinErr" aria-live="polite"></p>
+      </form>
+      <button type="button" class="ghost-btn linkish" id="joinOut">Use a different email</button>
+    </div>
+
+    <div class="panel" id="gateVerify" hidden>
+      <div class="eyebrow">Organizer check</div>
       <h2>Confirm your email</h2>
       <p class="muted">We sent a confirmation link to <strong id="verifyEmail"></strong>. Open it in Outlook (check Junk or Quarantine if it isn't there), then come back and continue.</p>
       <div class="row">
@@ -518,7 +535,10 @@
       <div class="eyebrow">Not on the class list</div>
       <h2>You're signed in, but not on the list yet</h2>
       <p class="muted"><strong id="notListedEmail"></strong> isn't on this class's list. Ask the organizer to add it, then reload this page.</p>
-      <button type="button" id="notListedOut">Sign out</button>
+      <div class="row">
+        <button type="button" id="notListedOut">Sign out</button>
+        <button type="button" class="ghost-btn linkish" id="orgVerifyBtn">I'm the organizer</button>
+      </div>
     </div>
   </section>
 
@@ -595,8 +615,22 @@
 
       <div class="panel">
         <div class="eyebrow">Only you see this</div>
+        <h2>Invite link</h2>
+        <p class="muted">Send this link to the class, for example in the class email or group chat. It fills in the class code <strong class="num" id="inviteCode">…</strong>, so classmates on your list only type their email, name and a password.</p>
+        <div class="row">
+          <input type="text" id="inviteLink" readonly aria-label="Invite link" style="flex: 1 1 260px; font-family: var(--f-mono); font-size: .85rem">
+          <button class="primary" type="button" id="copyInvite">Copy link</button>
+        </div>
+        <div class="row" style="justify-content: space-between">
+          <span class="muted small" id="inviteStatus" aria-live="polite"></span>
+          <button type="button" class="danger" id="newCodeBtn">Make a new code</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="eyebrow">Only you see this</div>
         <h2>Class list</h2>
-        <p class="muted">Only these school emails can create an account, see the photos and play. Paste them one per line or separated by commas. Pasting from a spreadsheet or an email's To line works too.</p>
+        <p class="muted">Only these school emails can join, see the photos and play. A ✓ means they've joined. Paste them one per line or separated by commas. Pasting from a spreadsheet or an email's To line works too.</p>
         <form id="allowForm" class="stack" style="gap: 10px">
           <label for="allowInput" class="small muted" style="font-weight: 600">Emails to add</label>
           <textarea id="allowInput" rows="4" placeholder="jdoe@mit.edu&#10;srivera@mit.edu"></textarea>

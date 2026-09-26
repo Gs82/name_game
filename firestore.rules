@@ -14,21 +14,30 @@ service cloud.firestore {
       return request.auth.token.email.lower();
     }
 
-    // The player clicked the confirmation link, so they really own the address.
-    // Only this domain is accepted (keep in sync with EMAIL_DOMAIN in docs/config.js).
-    function verified() {
-      return signedIn() && request.auth.token.email_verified == true
-        && myEmail().matches('.*@mit[.]edu$');
+    // Only this domain is accepted (keep in sync with EMAIL_DOMAIN in docs/config.js)
+    function inDomain() {
+      return signedIn() && myEmail().matches('.*@mit[.]edu$');
     }
 
+    // The organizer must also have clicked the confirmation link once
     function isOrganizer() {
-      return verified() && myEmail() in ['organizer@mit.edu'];
+      return inDomain() && request.auth.token.email_verified == true
+        && myEmail() in ['organizer@mit.edu'];
     }
 
-    // On the organizer's class list (the organizer always counts)
+    function listed() {
+      return exists(/databases/$(database)/documents/allowed/$(myEmail()));
+    }
+
+    // Joined with the class code (see /members below)
+    function isMember() {
+      return exists(/databases/$(database)/documents/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/members/$(request.auth.uid)).data.email == myEmail();
+    }
+
+    // Can see the class: the organizer, or a player who joined and is still on the list
     function onList() {
-      return verified()
-        && (isOrganizer() || exists(/databases/$(database)/documents/allowed/$(myEmail())));
+      return inDomain() && (isOrganizer() || (isMember() && listed()));
     }
 
     function challenge() {
@@ -62,10 +71,26 @@ service cloud.firestore {
       allow read: if isOrganizer();
     }
 
-    // The class list: one document per allowed email (lowercase), e.g. allowed/jane.doe@school.edu
+    // The class list: one document per allowed email (lowercase), e.g. allowed/jdoe@mit.edu
     match /allowed/{email} {
-      allow read: if isOrganizer() || (verified() && myEmail() == email);
+      allow read: if isOrganizer() || (inDomain() && myEmail() == email);
       allow write: if isOrganizer();
+    }
+
+    // The class code. Only the organizer can read it; the rules below compare against it.
+    match /secret/{docId} {
+      allow read, write: if isOrganizer();
+    }
+
+    // Joining: a player on the list proves they have the class code, once.
+    match /members/{uid} {
+      allow read: if isOrganizer() || (signedIn() && request.auth.uid == uid);
+      allow create: if inDomain() && request.auth.uid == uid && listed()
+        && request.resource.data.keys().hasOnly(['email', 'code', 'joinedAt'])
+        && request.resource.data.email == myEmail()
+        && request.resource.data.joinedAt is int
+        && request.resource.data.code == get(/databases/$(database)/documents/secret/code).data.code;
+      allow delete: if isOrganizer();
     }
 
     // Challenge settings
