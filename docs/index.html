@@ -427,8 +427,7 @@
     background: #0B0B12; color: #FFFFFF; font: 700 clamp(.95rem, 3.4vw, 1.2rem) var(--f-mono);
   }
   .finale .tap { position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); left: 0; right: 0; text-align: center; color: rgba(255, 255, 255, .75); font-weight: 600; font-size: .9rem; pointer-events: none; }
-  .finale .tim { position: absolute; left: 0; top: 0; width: clamp(110px, 22vw, 190px); z-index: 3; pointer-events: none; will-change: transform; filter: drop-shadow(0 8px 10px rgba(0, 0, 0, .45)); }
-  .finale .tim .label { font: 900 13px var(--f-display); letter-spacing: .08em; }
+  .finale .tim { position: absolute; left: 0; top: 0; width: clamp(110px, 21vw, 210px); height: auto; max-width: none; z-index: 3; pointer-events: none; will-change: transform; filter: drop-shadow(0 10px 12px rgba(0, 0, 0, .5)); }
   #fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 70; }
 
   /* ---------- Results ---------- */
@@ -693,32 +692,7 @@
   <div class="finale" id="finale" hidden role="dialog" aria-label="Run complete">
     <div id="finaleWords" aria-hidden="true"></div>
     <div class="hero"><span class="big">TYPE SHIT</span><span class="sub" id="finaleSub"></span></div>
-    <svg class="tim" id="tim" viewBox="0 0 170 120" aria-hidden="true">
-      <!-- Tim the Beaver, flying: cape, flat tail, one fist forward -->
-      <path d="M64 44 Q30 18 4 40 Q20 52 22 76 Q42 60 66 64 Z" fill="#A31F34"/>
-      <path d="M22 40 Q14 52 22 76" stroke="#7A1526" stroke-width="3" fill="none"/>
-      <g transform="rotate(-16 26 80)">
-        <ellipse cx="26" cy="80" rx="22" ry="10" fill="#4A2F1B"/>
-        <path d="M10 76 L42 84 M12 83 L40 77 M20 72 L24 88 M30 72 L32 88" stroke="#6B4628" stroke-width="2"/>
-      </g>
-      <ellipse cx="82" cy="68" rx="42" ry="25" fill="#8B5A2B"/>
-      <ellipse cx="88" cy="77" rx="27" ry="13" fill="#C9955E"/>
-      <path d="M62 88 Q56 100 48 104" stroke="#7A4E25" stroke-width="9" stroke-linecap="round" fill="none"/>
-      <path d="M112 58 Q134 44 150 38" stroke="#8B5A2B" stroke-width="10" stroke-linecap="round" fill="none"/>
-      <circle cx="151" cy="37" r="7.5" fill="#7A4E25"/>
-      <circle cx="120" cy="50" r="21" fill="#8B5A2B"/>
-      <circle cx="109" cy="32" r="6.5" fill="#6B4423"/>
-      <circle cx="109" cy="32" r="3" fill="#C9955E"/>
-      <circle cx="127" cy="43" r="5.5" fill="#FFFFFF"/>
-      <circle cx="129" cy="43" r="2.8" fill="#16100A"/>
-      <path d="M121 36 L133 34" stroke="#16100A" stroke-width="2.4" stroke-linecap="round"/>
-      <ellipse cx="136" cy="56" rx="11" ry="8.5" fill="#C9955E"/>
-      <ellipse cx="143" cy="52" rx="4.2" ry="3.2" fill="#16100A"/>
-      <path d="M130 61 Q137 66 144 60" stroke="#16100A" stroke-width="2" fill="none" stroke-linecap="round"/>
-      <rect x="133" y="61.5" width="4.2" height="7" rx="1" fill="#FFFFFF" stroke="#16100A" stroke-width=".8"/>
-      <rect x="137.4" y="61.5" width="4.2" height="7" rx="1" fill="#FFFFFF" stroke="#16100A" stroke-width=".8"/>
-      <text class="label" x="82" y="70" text-anchor="middle" fill="#FFFFFF">TIM</text>
-    </svg>
+    <img class="tim" id="tim" src="tim.webp" alt="" width="360" height="487">
     <div class="tap">Tap anywhere to see your results</div>
   </div>
   <canvas id="fx" aria-hidden="true"></canvas>

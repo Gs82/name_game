@@ -489,9 +489,8 @@ function b64(buf) {
 
     // Tim bounces around the screen like an arcade sprite
     const tim = $('tim');
-    const label = tim.querySelector('.label');
     const size = tim.getBoundingClientRect();
-    const tw = size.width || 150, th = tw * 120 / 170;
+    const tw = size.width || 130, th = size.height || tw * 487 / 360;
     let x = -tw, y = H * .25, vx = W / 90 + 4, vy = 2.2, t = 0, frame = 0;
     cancelAnimationFrame(finaleFrame);
     const fly = () => {
@@ -503,11 +502,10 @@ function b64(buf) {
       if (y > H - th) { y = H - th; vy = -Math.abs(vy); }
       if (frame % 90 === 0) vy = (Math.random() - .5) * 7;   // change altitude now and then
       const flip = vx < 0 ? -1 : 1;
-      const tilt = Math.max(-18, Math.min(18, vy * 3)) * flip;
-      tim.style.transform = `translate(${x}px, ${y}px) scaleX(${flip}) rotate(${tilt}deg)`;
-      // Keep the sash readable when the sprite is mirrored (mirrored TIM reads MIT)
-      label.setAttribute('transform', flip < 0 ? 'translate(164 0) scale(-1 1)' : '');
-      if (frame % 4 === 0) confetti({ x: x + (flip > 0 ? tw * .1 : tw * .9), y: y + th * .45, count: 3, spread: 120, power: 3, angle: flip > 0 ? 180 : 0 });
+      // The photo faces the viewer, so lean into the flight instead of mirroring (mirroring would flip the MIT shirt)
+      const tilt = flip * 16 + Math.sin(t / 7) * 6 + vy * 1.5;
+      tim.style.transform = `translate(${x}px, ${y}px) rotate(${tilt}deg)`;
+      if (frame % 4 === 0) confetti({ x: x + tw / 2 - flip * tw * .35, y: y + th * .75, count: 3, spread: 120, power: 3, angle: flip > 0 ? 180 : 0 });
       finaleFrame = requestAnimationFrame(fly);
     };
     if (reduceMotion) tim.style.transform = `translate(${W - tw - 16}px, ${H - th - 60}px)`;
