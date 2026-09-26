@@ -71,7 +71,7 @@ function b64(buf) {
   function show(section) {
     for (const s of ['gate', 'home', 'game', 'result']) $(s).hidden = s !== section;
     if (isAdmin) $('orgBar').hidden = section !== 'home';
-    if (section !== 'game') { $('game').classList.remove('pulse', 'redline'); $('game').style.setProperty('--alt', 0); $('game').style.setProperty('--shake', 0); }
+    if (section !== 'game') { $('game').classList.remove('pulse', 'redline'); $('game').style.setProperty('--alt', 0); }
     window.scrollTo(0, 0);
   }
   // Better = higher accuracy, then faster, then earlier
@@ -376,8 +376,6 @@ function b64(buf) {
     const game = $('game');
     const m = BASE_M + frac * (TOP_M - BASE_M);
     game.style.setProperty('--alt', frac.toFixed(3));
-    const shake = reduceMotion ? 0 : Math.max(0, (frac - .3) / .7) * 2.4 + (m >= 8000 ? 1 : 0);
-    game.style.setProperty('--shake', shake.toFixed(2));
     game.style.setProperty('--beat', (1.2 - frac * .75).toFixed(2) + 's');
     game.classList.toggle('pulse', frac >= .2);
     const prev = zoneFor(shownM), z = zoneFor(m);
@@ -406,14 +404,6 @@ function b64(buf) {
     if (z[1] === 'Summit') el.classList.add('summit');
   }
 
-  function stumble() {
-    const q = $('quake'), f = $('flash');
-    q.classList.remove('jolt'); f.classList.remove('on');
-    void q.offsetWidth;
-    if (!reduceMotion) q.classList.add('jolt');
-    f.classList.add('on');
-    try { navigator.vibrate && navigator.vibrate([70, 40, 70]); } catch {}
-  }
 
   // Confetti: a small canvas particle system
   const fx = $('fx'), fxCtx = fx.getContext('2d');
@@ -469,6 +459,72 @@ function b64(buf) {
       confetti({ x: innerWidth * (left ? .08 : .92), y: innerHeight * .95, count: big ? 90 : 60, spread: 45, power: 19, angle: left ? -65 : -115 });
     }, i * 300);
   }
+
+  // ================= Finish screen =================
+  // "TYPE SHIT" stamped all over the screen while Tim the Beaver flies around it.
+  let finaleFrame = 0, finaleTimer = 0;
+  function finale(sub) {
+    const el = $('finale'), words = $('finaleWords');
+    $('finaleSub').textContent = sub;
+    words.innerHTML = '';
+    const W = innerWidth, H = innerHeight;
+    const colors = ['#FFE14A', '#FFFFFF', '#A31F34', '#8EA3FF', '#5BD08A', '#FF8A3D'];
+    const cols = W < 600 ? 3 : 5, rows = Math.max(5, Math.round(H / 110));
+    let i = 0;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      const w = document.createElement('span');
+      w.className = 'word';
+      w.textContent = 'TYPE SHIT';
+      w.style.left = ((c + .5) / cols * 100 + (Math.random() - .5) * (60 / cols)) + '%';
+      w.style.top = ((r + .5) / rows * 100 + (Math.random() - .5) * (50 / rows)) + '%';
+      w.style.fontSize = (W < 600 ? 14 + Math.random() * 16 : 18 + Math.random() * 30) + 'px';
+      w.style.color = colors[i % colors.length];
+      w.style.setProperty('--r', (Math.random() * 50 - 25).toFixed(1) + 'deg');
+      w.style.setProperty('--d', (80 + Math.random() * 900).toFixed(0) + 'ms');
+      words.append(w);
+      i++;
+    }
+    el.classList.remove('out');
+    el.hidden = false;
+
+    // Tim bounces around the screen like an arcade sprite
+    const tim = $('tim');
+    const label = tim.querySelector('.label');
+    const size = tim.getBoundingClientRect();
+    const tw = size.width || 150, th = tw * 120 / 170;
+    let x = -tw, y = H * .25, vx = W / 90 + 4, vy = 2.2, t = 0, frame = 0;
+    cancelAnimationFrame(finaleFrame);
+    const fly = () => {
+      t += 1; frame++;
+      x += vx; y += vy + Math.sin(t / 9) * 2.4;
+      if (x > W - tw && vx > 0 && t > 20) vx = -vx;
+      if (x < 0 && vx < 0) vx = -vx;
+      if (y < 0) { y = 0; vy = Math.abs(vy); }
+      if (y > H - th) { y = H - th; vy = -Math.abs(vy); }
+      if (frame % 90 === 0) vy = (Math.random() - .5) * 7;   // change altitude now and then
+      const flip = vx < 0 ? -1 : 1;
+      const tilt = Math.max(-18, Math.min(18, vy * 3)) * flip;
+      tim.style.transform = `translate(${x}px, ${y}px) scaleX(${flip}) rotate(${tilt}deg)`;
+      // Keep the sash readable when the sprite is mirrored (mirrored TIM reads MIT)
+      label.setAttribute('transform', flip < 0 ? 'translate(164 0) scale(-1 1)' : '');
+      if (frame % 4 === 0) confetti({ x: x + (flip > 0 ? tw * .1 : tw * .9), y: y + th * .45, count: 3, spread: 120, power: 3, angle: flip > 0 ? 180 : 0 });
+      finaleFrame = requestAnimationFrame(fly);
+    };
+    if (reduceMotion) tim.style.transform = `translate(${W - tw - 16}px, ${H - th - 60}px)`;
+    else finaleFrame = requestAnimationFrame(fly);
+
+    clearTimeout(finaleTimer);
+    finaleTimer = setTimeout(closeFinale, 6500);
+  }
+  function closeFinale() {
+    const el = $('finale');
+    if (el.hidden || el.classList.contains('out')) return;
+    clearTimeout(finaleTimer);
+    el.classList.add('out');
+    setTimeout(() => { el.hidden = true; el.classList.remove('out'); cancelAnimationFrame(finaleFrame); }, 450);
+  }
+  $('finale').onclick = closeFinale;
+  document.addEventListener('keydown', e => { if (!$('finale').hidden && (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); closeFinale(); } });
 
   // ================= Game engine =================
   let G = null;
@@ -627,7 +683,7 @@ function b64(buf) {
     if (!correct) btn.classList.add('wrong');
     record(correct);
     if (correct) { feedback(true, 'Correct'); burstFrom(btn, 26 + Math.round(G.correct / G.total * 60)); }
-    else { feedback(false, 'Not quite'); showTag(G.current.name); stumble(); }
+    else { feedback(false, 'Not quite'); showTag(G.current.name); }
     if (G.ranked) G.advance = setTimeout(nextQuestion, correct ? 450 : 1300);
     else { setButtons('answered'); $('nextBtn').focus(); }
   }
@@ -643,7 +699,7 @@ function b64(buf) {
     $('guess').disabled = true;
     if (res === 'exact') feedback(true, 'Correct');
     else if (res === 'close') feedback(true, `Close enough. It's spelled ${G.current.name}.`);
-    else { feedback(false, 'Not quite'); showTag(G.current.name); stumble(); }
+    else { feedback(false, 'Not quite'); showTag(G.current.name); }
     if (res) burstFrom($('guess'), 26 + Math.round(G.correct / G.total * 60));
     setButtons('answered');
     $('nextBtn').focus();
@@ -660,7 +716,7 @@ function b64(buf) {
   };
   $('revealBtn').onclick = () => { showTag(G.current.name); setButtons('flash-shown'); };
   $('gotItBtn').onclick = () => { record(true); burstFrom($('gotItBtn'), 30); nextQuestion(); };
-  $('missedItBtn').onclick = () => { record(false); stumble(); nextQuestion(); };
+  $('missedItBtn').onclick = () => { record(false); nextQuestion(); };
   $('nextBtn').onclick = () => nextQuestion();
   $('quitBtn').onclick = () => {
     if (!G) return;
@@ -701,6 +757,7 @@ function b64(buf) {
     const rz = zoneFor(reachedM);
     $('resAlt').textContent = rz[1] === 'Summit' ? 'You reached the summit: 8,849 m.'
       : `You reached ${rz[1] === 'Death zone' ? 'the death zone' : rz[1]} at ${fmtM(reachedM)}.`;
+    finale(g.ranked ? `${g.correct}/${g.total} · ${fmtTime(g.ms)}` : `${g.correct}/${seenCount || 0} first try`);
     if (g.correct === g.total && g.total > 0) celebrate(true);
     else if (g.correct / Math.max(1, g.total) >= .6) celebrate(false);
     $('resVerdict').textContent = '';
