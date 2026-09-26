@@ -9,7 +9,7 @@ import {
 import {
   getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, writeBatch,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { FIREBASE_CONFIG, EMAIL_DOMAIN } from './config.js?v=4';
+import { FIREBASE_CONFIG, EMAIL_DOMAIN } from './config.js?v=5';
 
 function b64(buf) {
   const u = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
@@ -425,15 +425,19 @@ function b64(buf) {
     }
     if (!fxFrame) fxFrame = requestAnimationFrame(tickFx);
   }
-  function tickFx() {
+  let fxLast = 0;
+  function tickFx(now) {
+    const dt = fxLast ? Math.min(3, (now - fxLast) / (1000 / 60)) : 1;
+    fxLast = now;
     const dpr = window.devicePixelRatio || 1, W = innerWidth, H = innerHeight;
     if (fx.width !== Math.round(W * dpr) || fx.height !== Math.round(H * dpr)) { fx.width = Math.round(W * dpr); fx.height = Math.round(H * dpr); }
     fxCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     fxCtx.clearRect(0, 0, W, H);
     parts = parts.filter(p => p.life < p.ttl && p.y < H + 40);
     for (const p of parts) {
-      p.vy += .28; p.vx *= .985; p.vy *= .985;
-      p.x += p.vx; p.y += p.vy; p.r += p.vr; p.life++;
+      const drag = Math.pow(.985, dt);
+      p.vy += .28 * dt; p.vx *= drag; p.vy *= drag;
+      p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.vr * dt; p.life += dt;
       fxCtx.save();
       fxCtx.globalAlpha = Math.min(1, (p.ttl - p.life) / 25);
       fxCtx.translate(p.x, p.y);
@@ -444,6 +448,7 @@ function b64(buf) {
       fxCtx.restore();
     }
     fxFrame = parts.length ? requestAnimationFrame(tickFx) : 0;
+    if (!fxFrame) fxLast = 0;
     if (!parts.length) fxCtx.clearRect(0, 0, W, H);
   }
   function burstFrom(el, count) {
@@ -489,21 +494,28 @@ function b64(buf) {
     const tim = $('tim');
     const size = tim.getBoundingClientRect();
     const tw = size.width || 130, th = size.height || tw * 487 / 360;
-    let x = -tw, y = H * .25, vx = W / 90 + 4, vy = 2.2, t = 0, frame = 0;
+    // Speeds are in pixels per 1/60 s and scaled by real elapsed time, so Tim flies
+    // the same speed on 60 Hz and 120 Hz screens
+    let x = -tw, y = H * .25, vx = W / 140 + 2.5, vy = 1.6, t = 0;
+    let last = performance.now(), nextTurn = 1500, nextSpark = 0;
     cancelAnimationFrame(finaleFrame);
-    const fly = () => {
-      t += 1; frame++;
-      x += vx; y += vy + Math.sin(t / 9) * 2.4;
+    const fly = now => {
+      const dt = Math.min(3, (now - last) / (1000 / 60));
+      last = now;
+      t += dt;
+      x += vx * dt; y += (vy + Math.sin(t / 12) * 1.7) * dt;
       if (x > W - tw && vx > 0 && t > 20) vx = -vx;
       if (x < 0 && vx < 0) vx = -vx;
       if (y < 0) { y = 0; vy = Math.abs(vy); }
       if (y > H - th) { y = H - th; vy = -Math.abs(vy); }
-      if (frame % 90 === 0) vy = (Math.random() - .5) * 7;   // change altitude now and then
+      nextTurn -= dt * 1000 / 60;
+      if (nextTurn <= 0) { vy = (Math.random() - .5) * 5; nextTurn = 1500; }   // change altitude now and then
       const flip = vx < 0 ? -1 : 1;
       // The photo faces the viewer, so lean into the flight instead of mirroring (mirroring would flip the MIT shirt)
-      const tilt = flip * 16 + Math.sin(t / 7) * 6 + vy * 1.5;
+      const tilt = flip * 14 + Math.sin(t / 10) * 5 + vy * 1.5;
       tim.style.transform = `translate(${x}px, ${y}px) rotate(${tilt}deg)`;
-      if (frame % 4 === 0) confetti({ x: x + tw / 2 - flip * tw * .35, y: y + th * .75, count: 3, spread: 120, power: 3, angle: flip > 0 ? 180 : 0 });
+      nextSpark -= dt * 1000 / 60;
+      if (nextSpark <= 0) { confetti({ x: x + tw / 2 - flip * tw * .35, y: y + th * .75, count: 3, spread: 120, power: 3, angle: flip > 0 ? 180 : 0 }); nextSpark = 70; }
       finaleFrame = requestAnimationFrame(fly);
     };
     if (reduceMotion) tim.style.transform = `translate(${W - tw - 16}px, ${H - th - 60}px)`;
